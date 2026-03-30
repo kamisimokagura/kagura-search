@@ -14,3 +14,4 @@ export { OutputShield } from "./security/output-shield.js";
 export { VerifyEngine } from "./verify/engine.js";
 export { SearchEngine } from "./search/engine.js";
 export type { SearchProvider, ContentExtractor } from "./search/provider.js";
+export { JinaExtractor } from "./search/providers/jina.js";
