@@ -6,6 +6,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { KaguraSearch } from "@kagura/core";
+import type { Platform } from "@kagura/core";
 import { JinaExtractor } from "@kagura/core";
 import { TOOL_DEFINITIONS } from "./tools.js";
 
@@ -44,7 +45,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "kagura_platform": {
       const query = `${args!.query} site:${platformSite(args!.platform as string)}`;
       const response = await kagura.search(query, {
-        platform: args!.platform as string,
+        platform: args!.platform as Platform,
         maxResults: args!.maxResults as number,
       });
       return {
