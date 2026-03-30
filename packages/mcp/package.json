@@ -1,0 +1,25 @@
+{
+  "name": "@kagura/mcp",
+  "version": "0.1.0",
+  "description": "Kagura Search MCP Server",
+  "type": "module",
+  "bin": {
+    "kagura-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@kagura/core": "*",
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

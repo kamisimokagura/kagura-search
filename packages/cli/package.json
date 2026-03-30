@@ -1,0 +1,25 @@
+{
+  "name": "@kagura/search-tool",
+  "version": "0.1.0",
+  "description": "Kagura Search CLI - truth-illuminating search",
+  "type": "module",
+  "bin": {
+    "kagura": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@kagura/core": "*",
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
