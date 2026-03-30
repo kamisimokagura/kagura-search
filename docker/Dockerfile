@@ -13,6 +13,5 @@ COPY packages/ packages/
 
 RUN npm run build
 
-EXPOSE 3100
-
-CMD ["node", "packages/mcp/dist/index.js"]
+# CLI entry point - use with: docker run kagura-search "search query"
+ENTRYPOINT ["node", "packages/cli/dist/index.js"]

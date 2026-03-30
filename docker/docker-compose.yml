@@ -9,17 +9,5 @@ services:
       - searxng-data:/etc/searxng
     restart: unless-stopped
 
-  kagura:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    environment:
-      SEARXNG_URL: http://searxng:8080
-    ports:
-      - "3100:3100"
-    depends_on:
-      - searxng
-    restart: unless-stopped
-
 volumes:
   searxng-data:
