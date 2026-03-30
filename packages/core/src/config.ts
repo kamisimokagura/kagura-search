@@ -1,4 +1,7 @@
-import type { KaguraConfig } from "./types.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import type { KaguraConfig, SearchProviderConfig } from "./types.js";
 
 export function getDefaultConfig(): Required<
   Pick<KaguraConfig, "providers" | "deep" | "maxResults" | "timeout">
@@ -20,16 +23,69 @@ export function resolveEnvValue(value: string): string | undefined {
   return value;
 }
 
+/**
+ * Load config from ~/.kagura/config.json if it exists.
+ * Returns an empty partial config if the file is missing or invalid.
+ */
+export function loadConfigFromFile(): Partial<KaguraConfig> {
+  try {
+    const configPath = join(homedir(), ".kagura", "config.json");
+    const raw = readFileSync(configPath, "utf-8");
+    return JSON.parse(raw) as Partial<KaguraConfig>;
+  } catch {
+    // File doesn't exist or is invalid JSON — return empty config
+    return {};
+  }
+}
+
+/**
+ * Iterate over all providers and resolve any `env:` prefixed values
+ * in apiKey and baseUrl fields. Also applies SEARXNG_URL env fallback.
+ */
+export function resolveProviderEnvValues(config: KaguraConfig): KaguraConfig {
+  const resolvedProviders: Record<string, SearchProviderConfig> = {};
+
+  for (const [name, provider] of Object.entries(config.providers)) {
+    const resolved: SearchProviderConfig = { ...provider };
+
+    if (resolved.apiKey) {
+      resolved.apiKey = resolveEnvValue(resolved.apiKey) ?? resolved.apiKey;
+    }
+    if (resolved.baseUrl) {
+      resolved.baseUrl = resolveEnvValue(resolved.baseUrl) ?? resolved.baseUrl;
+    }
+
+    resolvedProviders[name] = resolved;
+  }
+
+  // Fallback: if searxng provider has no baseUrl, check SEARXNG_URL env
+  if (resolvedProviders.searxng && !resolvedProviders.searxng.baseUrl) {
+    const envUrl = process.env.SEARXNG_URL;
+    if (envUrl) {
+      resolvedProviders.searxng = {
+        ...resolvedProviders.searxng,
+        baseUrl: envUrl,
+      };
+    }
+  }
+
+  return { ...config, providers: resolvedProviders };
+}
+
 export function loadConfig(userConfig?: Partial<KaguraConfig>): KaguraConfig {
   const defaults = getDefaultConfig();
-  if (!userConfig) return defaults;
+  const fileConfig = loadConfigFromFile();
 
-  return {
+  const merged: KaguraConfig = {
     ...defaults,
+    ...fileConfig,
     ...userConfig,
     providers: {
       ...defaults.providers,
-      ...userConfig.providers,
+      ...fileConfig.providers,
+      ...userConfig?.providers,
     },
   };
+
+  return resolveProviderEnvValues(merged);
 }
