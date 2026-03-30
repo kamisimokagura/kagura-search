@@ -43,6 +43,54 @@ describe("KaguraSearch", () => {
     expect(response.meta.totalResults).toBe(0);
   });
 
+  it("deep mode filters out unverified results", async () => {
+    // Return 3 results: 2 with similar content (will group → verified) + 1 unique (unverified)
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            title: "Source A",
+            url: "https://a.com",
+            content: "TypeScript is a typed superset of JavaScript",
+            engine: "searxng",
+          },
+          {
+            title: "Source B",
+            url: "https://b.com",
+            content: "TypeScript is a typed superset of JavaScript language",
+            engine: "ddg",
+          },
+          {
+            title: "Unrelated",
+            url: "https://c.com",
+            content: "Something completely different about cooking recipes",
+            engine: "searxng",
+          },
+        ],
+      }),
+    });
+
+    const kagura = new KaguraSearch();
+
+    // Normal mode: should include all results (verified + unverified)
+    const normal = await kagura.search("TypeScript");
+    const normalUnverified = normal.results.filter(
+      (r) => r.trust === "unverified",
+    );
+    expect(normalUnverified.length).toBeGreaterThan(0);
+
+    // Deep mode: should filter out unverified results
+    const deep = await kagura.search("TypeScript", { deep: true });
+    const deepUnverified = deep.results.filter((r) => r.trust === "unverified");
+    expect(deepUnverified).toHaveLength(0);
+    expect(deep.results.length).toBeLessThan(normal.results.length);
+    // All remaining results should be verified or conflicted
+    for (const r of deep.results) {
+      expect(["verified", "conflicted"]).toContain(r.trust);
+    }
+  });
+
   it("verify method checks a claim", async () => {
     mockFetch.mockResolvedValue({
       ok: true,

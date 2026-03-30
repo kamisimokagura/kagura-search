@@ -50,10 +50,17 @@ export class KaguraSearch {
 
     const sanitized = security.sanitizedQuery ?? query;
     const maxResults = options?.maxResults ?? this.config.maxResults ?? 10;
+    const isDeep = options?.deep ?? this.config.deep;
+    const discoverCount = isDeep ? maxResults * 2 : maxResults;
 
-    const raw = await this.searchEngine.discover(sanitized, maxResults);
+    const raw = await this.searchEngine.discover(sanitized, discoverCount);
     const verified = this.verifyEngine.verify(raw, sanitized);
-    const safe = this.outputShield.protect(verified.results);
+    let safe = this.outputShield.protect(verified.results);
+
+    // In deep mode, filter to only verified/conflicted results
+    if (isDeep) {
+      safe = safe.filter((r) => r.trust !== "unverified");
+    }
 
     return {
       query,
