@@ -16,7 +16,7 @@ export class OutputShield {
     return {
       ...result,
       content: this.sanitizeContent(result.content),
-      title: this.stripZeroWidth(result.title),
+      title: this.sanitizeContent(result.title),
     };
   }
 
