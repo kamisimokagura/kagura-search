@@ -28,7 +28,9 @@ export class SearchEngine {
       }
     }
 
-    return this.deduplicate(allResults).slice(0, maxResults);
+    // Don't truncate here — let verification see the full multi-engine result set.
+    // The caller (KaguraSearch) handles final maxResults slicing after verification.
+    return this.deduplicate(allResults);
   }
 
   private deduplicate(results: RawSearchResult[]): RawSearchResult[] {

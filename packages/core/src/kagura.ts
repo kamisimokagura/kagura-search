@@ -121,12 +121,12 @@ export class KaguraSearch {
     }
 
     const sanitized = security.sanitizedQuery ?? claim;
-    const maxResults = sources ?? this.config.maxResults ?? 10;
-    const discoverCount = maxResults * 2;
+    const maxResults = this.config.maxResults ?? 10;
+    // sources controls verification threshold; use a wider search window
+    const minSources = sources ?? 2;
+    const discoverCount = Math.max(maxResults, minSources) * 3;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);
-    // Use sources as the minimum independent-source threshold for verification
-    const minSources = sources ?? 2;
     const verified = this.verifyEngine.verify(raw, sanitized, minSources);
     const safe = this.outputShield
       .protect(verified.results)

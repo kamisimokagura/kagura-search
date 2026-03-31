@@ -49,10 +49,11 @@ export function resolveProviderEnvValues(config: KaguraConfig): KaguraConfig {
     const resolved: SearchProviderConfig = { ...provider };
 
     if (resolved.apiKey) {
-      resolved.apiKey = resolveEnvValue(resolved.apiKey) ?? resolved.apiKey;
+      // If env var is unset, clear the field rather than keeping "env:..." as a literal
+      resolved.apiKey = resolveEnvValue(resolved.apiKey);
     }
     if (resolved.baseUrl) {
-      resolved.baseUrl = resolveEnvValue(resolved.baseUrl) ?? resolved.baseUrl;
+      resolved.baseUrl = resolveEnvValue(resolved.baseUrl);
     }
 
     resolvedProviders[name] = resolved;
