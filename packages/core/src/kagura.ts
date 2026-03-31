@@ -76,10 +76,11 @@ export class KaguraSearch {
     const isDeep = options?.deep ?? this.config.deep;
     const discoverCount = isDeep ? maxResults * 2 : maxResults;
 
-    // Apply platform site: prefix to narrow search scope
+    // Apply platform site: prefix to narrow search scope (skip for "web" or unknown)
     const platform = options?.platform;
-    const searchQuery = platform
-      ? `${sanitized} site:${this.platformSite(platform)}`
+    const platformDomain = platform ? this.platformSite(platform) : "";
+    const searchQuery = platformDomain
+      ? `${sanitized} site:${platformDomain}`
       : sanitized;
 
     const raw = await this.searchEngine.discover(searchQuery, discoverCount);
@@ -128,8 +129,8 @@ export class KaguraSearch {
 
     const sanitized = security.sanitizedQuery ?? claim;
     const maxResults = this.config.maxResults ?? 10;
-    // sources controls verification threshold; default 3 matches MCP schema
-    const minSources = sources ?? 3;
+    // sources controls verification threshold; default 2 consistent with search()
+    const minSources = sources ?? 2;
     const discoverCount = Math.max(maxResults, minSources) * 3;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);

@@ -64,7 +64,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         claim: { type: "string", description: "The claim to verify" },
         sources: {
           type: "number",
-          description: "Minimum sources to check (default 3)",
+          description:
+            "Minimum independent sources to require for verified status (default 2)",
         },
       },
       required: ["claim"],

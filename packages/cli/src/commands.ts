@@ -29,8 +29,9 @@ export function createProgram(): Command {
       });
 
       const platform = opts.platform as Platform | undefined;
-      const searchQuery = platform
-        ? `${query} site:${platformToSite(platform)}`
+      const platformDomain = platform ? platformToSite(platform) : "";
+      const searchQuery = platformDomain
+        ? `${query} site:${platformDomain}`
         : query;
 
       const response = await kagura.search(searchQuery, {
@@ -41,6 +42,27 @@ export function createProgram(): Command {
 
       if (opts.format === "json") {
         console.log(JSON.stringify(response, null, 2));
+        return;
+      }
+
+      if (opts.format === "markdown") {
+        console.log(`# Kagura Search Results\n`);
+        console.log(
+          `> ${response.meta.totalResults} results from ${response.meta.engines.join(", ")} in ${response.meta.searchTimeMs}ms\n`,
+        );
+        for (const result of response.results) {
+          const trustBadge =
+            result.trust === "verified"
+              ? "verified"
+              : result.trust === "conflicted"
+                ? "conflicted"
+                : "unverified";
+          console.log(`## [${result.title}](${result.source})\n`);
+          console.log(
+            `**Trust:** ${trustBadge} (${result.score.toFixed(2)}) | **Sources:** ${result.matchedSources}\n`,
+          );
+          console.log(`${result.content}\n`);
+        }
         return;
       }
 
