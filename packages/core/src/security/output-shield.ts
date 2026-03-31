@@ -24,7 +24,12 @@ export class OutputShield {
     let cleaned = this.stripZeroWidth(content);
 
     for (const { pattern } of PI_PATTERNS) {
-      cleaned = cleaned.replace(pattern, "[removed]");
+      // Ensure global flag so all occurrences are replaced, not just the first
+      const globalPattern = new RegExp(
+        pattern.source,
+        pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g",
+      );
+      cleaned = cleaned.replace(globalPattern, "[removed]");
     }
 
     cleaned = cleaned.replace(/\[removed\]\s*/g, "").trim();

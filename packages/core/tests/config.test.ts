@@ -108,6 +108,19 @@ describe("resolveProviderEnvValues", () => {
     expect(resolved.providers.searxng?.baseUrl).toBe("http://env-searxng:8080");
   });
 
+  it("auto-creates searxng provider from SEARXNG_URL when providers is empty", () => {
+    process.env.SEARXNG_URL = "http://auto-created:8080";
+
+    const config: KaguraConfig = {
+      providers: {},
+    };
+
+    const resolved = resolveProviderEnvValues(config);
+    expect(resolved.providers.searxng?.baseUrl).toBe(
+      "http://auto-created:8080",
+    );
+  });
+
   it("does not override explicit searxng baseUrl with SEARXNG_URL env", () => {
     process.env.SEARXNG_URL = "http://env-searxng:8080";
 

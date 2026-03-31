@@ -58,10 +58,12 @@ export function resolveProviderEnvValues(config: KaguraConfig): KaguraConfig {
     resolvedProviders[name] = resolved;
   }
 
-  // Fallback: if searxng provider has no baseUrl, check SEARXNG_URL env
-  if (resolvedProviders.searxng && !resolvedProviders.searxng.baseUrl) {
-    const envUrl = process.env.SEARXNG_URL;
-    if (envUrl) {
+  // Fallback: check SEARXNG_URL env even when no searxng provider is configured
+  const envUrl = process.env.SEARXNG_URL;
+  if (envUrl) {
+    if (!resolvedProviders.searxng) {
+      resolvedProviders.searxng = { baseUrl: envUrl };
+    } else if (!resolvedProviders.searxng.baseUrl) {
       resolvedProviders.searxng = {
         ...resolvedProviders.searxng,
         baseUrl: envUrl,

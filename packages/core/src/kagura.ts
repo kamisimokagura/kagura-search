@@ -62,6 +62,9 @@ export class KaguraSearch {
       safe = safe.filter((r) => r.trust !== "unverified");
     }
 
+    // Enforce maxResults after all filtering
+    safe = safe.slice(0, maxResults);
+
     return {
       query,
       results: safe,

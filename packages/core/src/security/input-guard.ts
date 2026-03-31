@@ -5,8 +5,12 @@ export class InputGuard {
   validate(query: string): SecurityReport {
     const warnings: string[] = [];
 
+    // Sanitize first so HTML tags cannot break PI pattern matching
+    // e.g. "ignore <b>previous</b> instructions" → "ignore previous instructions"
+    const sanitizedQuery = this.sanitize(query);
+
     for (const { pattern, description, severity } of PI_PATTERNS) {
-      if (pattern.test(query)) {
+      if (pattern.test(sanitizedQuery)) {
         if (severity === "block") {
           return {
             blocked: true,
@@ -19,7 +23,7 @@ export class InputGuard {
     }
 
     for (const { pattern, description } of MALICIOUS_PATTERNS) {
-      if (pattern.test(query)) {
+      if (pattern.test(sanitizedQuery)) {
         return {
           blocked: true,
           reason: `malicious intent detected: ${description}`,
@@ -27,8 +31,6 @@ export class InputGuard {
         };
       }
     }
-
-    const sanitizedQuery = this.sanitize(query);
 
     return {
       blocked: false,
