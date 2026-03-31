@@ -4,7 +4,7 @@
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
 
 Kagura Search is an open-source search tool that **never lies**. It searches across multiple engines, cross-checks sources for contradictions, and labels every result with a trust level. Works with 90+ AI tools via MCP protocol -- zero API keys required.
 

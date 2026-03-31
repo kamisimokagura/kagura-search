@@ -5,7 +5,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { KaguraSearch } from "@kagura/core";
+import { KaguraSearch, OutputShield } from "@kagura/core";
 import type { Platform } from "@kagura/core";
 import { JinaExtractor } from "@kagura/core";
 import { TOOL_DEFINITIONS } from "./tools.js";
@@ -69,12 +69,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case "kagura_extract": {
       const jina = new JinaExtractor();
-      const content = await jina.extract(args!.url as string);
+      const rawContent = await jina.extract(args!.url as string);
+      if (!rawContent) {
+        return {
+          content: [
+            { type: "text", text: "Failed to extract content from URL." },
+          ],
+        };
+      }
+      // Sanitize extracted content through OutputShield to strip PI and zero-width chars
+      const shield = new OutputShield();
+      const sanitized = shield.protect([
+        {
+          title: "",
+          source: args!.url as string,
+          content: rawContent,
+          trust: "unverified" as const,
+          score: 0,
+          matchedSources: 0,
+        },
+      ]);
       return {
         content: [
           {
             type: "text",
-            text: content ?? "Failed to extract content from URL.",
+            text: sanitized.length > 0 ? sanitized[0].content : rawContent,
           },
         ],
       };

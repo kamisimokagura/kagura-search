@@ -49,13 +49,36 @@ export function detectNumberConflict(
   numbersA: number[],
   numbersB: number[],
 ): boolean {
+  if (numbersA.length === 0 || numbersB.length === 0) return false;
+
+  // For each number in A, find the closest match in B (same order of magnitude).
+  // Only flag conflict when matched pairs disagree, avoiding false positives
+  // from unrelated numbers (years, rankings, counts in different contexts).
+  let matchedPairs = 0;
+  let conflictingPairs = 0;
+
   for (const a of numbersA) {
+    let bestMatch: number | null = null;
+    let bestRatio = Infinity;
+
     for (const b of numbersB) {
-      if (a > 0 && b > 0) {
-        const ratio = Math.max(a, b) / Math.min(a, b);
-        if (ratio > 1.15 && ratio < 10) return true;
+      if (a <= 0 || b <= 0) continue;
+      const ratio = Math.max(a, b) / Math.min(a, b);
+      // Only consider numbers in the same order of magnitude (ratio < 3)
+      if (ratio < 3 && ratio < bestRatio) {
+        bestMatch = b;
+        bestRatio = ratio;
+      }
+    }
+
+    if (bestMatch !== null) {
+      matchedPairs++;
+      if (bestRatio > 1.15) {
+        conflictingPairs++;
       }
     }
   }
-  return false;
+
+  // Require at least one matched pair and majority disagreement
+  return matchedPairs >= 1 && conflictingPairs > matchedPairs / 2;
 }

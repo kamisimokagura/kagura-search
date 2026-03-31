@@ -23,8 +23,10 @@ export class OutputShield {
   private sanitizeContent(content: string): string {
     let cleaned = this.stripZeroWidth(content);
 
-    for (const { pattern } of PI_PATTERNS) {
-      // Ensure global flag so all occurrences are replaced, not just the first
+    for (const { pattern, severity } of PI_PATTERNS) {
+      // Only strip patterns with "block" severity — warn patterns (e.g. SQL keywords)
+      // are legitimate content that should not be removed from search results
+      if (severity !== "block") continue;
       const globalPattern = new RegExp(
         pattern.source,
         pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g",
