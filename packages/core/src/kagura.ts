@@ -76,7 +76,13 @@ export class KaguraSearch {
     const isDeep = options?.deep ?? this.config.deep;
     const discoverCount = isDeep ? maxResults * 2 : maxResults;
 
-    const raw = await this.searchEngine.discover(sanitized, discoverCount);
+    // Apply platform site: prefix to narrow search scope
+    const platform = options?.platform;
+    const searchQuery = platform
+      ? `${sanitized} site:${this.platformSite(platform)}`
+      : sanitized;
+
+    const raw = await this.searchEngine.discover(searchQuery, discoverCount);
     const verified = this.verifyEngine.verify(raw, sanitized);
     let safe = this.outputShield.protect(verified.results);
 
@@ -122,8 +128,8 @@ export class KaguraSearch {
 
     const sanitized = security.sanitizedQuery ?? claim;
     const maxResults = this.config.maxResults ?? 10;
-    // sources controls verification threshold; use a wider search window
-    const minSources = sources ?? 2;
+    // sources controls verification threshold; default 3 matches MCP schema
+    const minSources = sources ?? 3;
     const discoverCount = Math.max(maxResults, minSources) * 3;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);
@@ -153,6 +159,19 @@ export class KaguraSearch {
 
     const sanitized = security.sanitizedQuery ?? query;
     const count = maxResults ?? this.config.maxResults ?? 10;
-    return this.searchEngine.discover(sanitized, count);
+    const raw = await this.searchEngine.discover(sanitized, count);
+    return raw.slice(0, count);
+  }
+
+  private platformSite(platform: string): string {
+    const map: Record<string, string> = {
+      twitter: "x.com",
+      reddit: "reddit.com",
+      youtube: "youtube.com",
+      instagram: "instagram.com",
+      tiktok: "tiktok.com",
+      github: "github.com",
+    };
+    return map[platform] ?? "";
   }
 }

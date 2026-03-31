@@ -41,7 +41,7 @@ export class VerifyEngine {
         content: primary.snippet,
         trust,
         score,
-        matchedSources: group.length,
+        matchedSources: independentCount,
       });
     }
 
