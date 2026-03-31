@@ -33,23 +33,21 @@ export class KaguraSearch {
   private buildProviders(): SearchProvider[] {
     const providers: SearchProvider[] = [];
     const cfg = this.config.providers;
+    const timeout = this.config.timeout;
 
-    // Only add providers that are configured or have no explicit enabled:false
+    // Only add providers that are not explicitly disabled
     const searxngCfg = cfg.searxng;
     if (searxngCfg?.enabled !== false) {
-      providers.push(new SearXNGProvider(searxngCfg?.baseUrl));
+      providers.push(new SearXNGProvider(searxngCfg?.baseUrl, timeout));
     }
 
     const ddgCfg = cfg.duckduckgo;
     if (ddgCfg?.enabled !== false) {
-      providers.push(new DuckDuckGoProvider());
+      providers.push(new DuckDuckGoProvider(timeout));
     }
 
-    // Fallback: if no providers are enabled, use defaults
-    if (providers.length === 0) {
-      providers.push(new SearXNGProvider(), new DuckDuckGoProvider());
-    }
-
+    // No fallback: if all providers are explicitly disabled,
+    // return empty so searches return no results as expected
     return providers;
   }
 
@@ -102,7 +100,7 @@ export class KaguraSearch {
     };
   }
 
-  async verify(claim: string): Promise<KaguraResponse> {
+  async verify(claim: string, sources?: number): Promise<KaguraResponse> {
     // verify() uses 2x discovery like deep mode but preserves ALL results
     // including unverified ones, so callers can distinguish "found but not
     // corroborated" from "not found at all"
@@ -123,7 +121,7 @@ export class KaguraSearch {
     }
 
     const sanitized = security.sanitizedQuery ?? claim;
-    const maxResults = this.config.maxResults ?? 10;
+    const maxResults = sources ?? this.config.maxResults ?? 10;
     const discoverCount = maxResults * 2;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);

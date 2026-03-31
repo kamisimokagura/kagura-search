@@ -36,7 +36,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "kagura_verify": {
-      const response = await kagura.verify(args!.claim as string);
+      const sources = (args!.sources as number) ?? undefined;
+      const response = await kagura.verify(args!.claim as string, sources);
       return {
         content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
       };
@@ -60,11 +61,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args!.query as string,
         args!.maxResults as number,
       );
-      const urls = raw.map((r) => ({
-        title: r.title,
-        url: r.url,
-        engine: r.engine,
-      }));
+      // Sanitize titles through OutputShield to strip PI from untrusted results
+      const shield = new OutputShield();
+      const urls = raw
+        .filter((r) => /^https?:\/\//.test(r.url))
+        .map((r) => {
+          const sanitized = shield.protect([
+            {
+              title: r.title,
+              source: r.url,
+              content: r.snippet,
+              trust: "unverified" as const,
+              score: 0,
+              matchedSources: 0,
+            },
+          ]);
+          return {
+            title: sanitized[0]?.title ?? r.title,
+            url: r.url,
+            engine: r.engine,
+          };
+        });
       return {
         content: [{ type: "text", text: JSON.stringify(urls, null, 2) }],
       };

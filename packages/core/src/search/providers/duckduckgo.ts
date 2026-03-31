@@ -4,6 +4,11 @@ import type { RawSearchResult } from "../../types.js";
 export class DuckDuckGoProvider implements SearchProvider {
   readonly name = "duckduckgo";
   readonly tier = 0 as const;
+  private timeout: number;
+
+  constructor(timeout?: number) {
+    this.timeout = timeout ?? 8000;
+  }
 
   isAvailable(): boolean {
     return true;
@@ -19,7 +24,7 @@ export class DuckDuckGoProvider implements SearchProvider {
           "User-Agent": "KaguraSearch/1.0",
           Accept: "text/html",
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(this.timeout),
       });
 
       if (!response.ok) return [];

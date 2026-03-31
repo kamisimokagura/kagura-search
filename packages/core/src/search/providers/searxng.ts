@@ -11,9 +11,11 @@ export class SearXNGProvider implements SearchProvider {
   readonly name = "searxng";
   readonly tier = 0 as const;
   private baseUrl: string;
+  private timeout: number;
 
-  constructor(baseUrl?: string) {
+  constructor(baseUrl?: string, timeout?: number) {
     this.baseUrl = baseUrl ?? PUBLIC_INSTANCES[0];
+    this.timeout = timeout ?? 8000;
   }
 
   isAvailable(): boolean {
@@ -27,7 +29,7 @@ export class SearXNGProvider implements SearchProvider {
     try {
       const response = await fetch(url, {
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(this.timeout),
       });
 
       if (!response.ok) return [];
