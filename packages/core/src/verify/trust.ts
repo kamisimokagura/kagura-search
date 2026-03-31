@@ -26,11 +26,12 @@ export function determineTrust(
   matchCount: number,
   totalSources: number,
   hasContradiction: boolean,
+  minSources = 2,
 ): { trust: TrustLevel; score: number } {
   if (hasContradiction) {
     return { trust: "conflicted", score: 0.3 };
   }
-  if (matchCount >= 2) {
+  if (matchCount >= minSources) {
     const score = Math.min(0.5 + (matchCount / totalSources) * 0.5, 1.0);
     return { trust: "verified", score };
   }

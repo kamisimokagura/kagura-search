@@ -14,7 +14,7 @@ interface VerifyResult {
 export class VerifyEngine {
   private readonly SIMILARITY_THRESHOLD = 0.3;
 
-  verify(raw: RawSearchResult[], query: string): VerifyResult {
+  verify(raw: RawSearchResult[], query: string, minSources = 2): VerifyResult {
     if (raw.length === 0) return { results: [], conflicts: 0 };
 
     const groups = this.groupSimilar(raw);
@@ -25,10 +25,13 @@ export class VerifyEngine {
       const hasConflict = this.checkConflicts(group);
       if (hasConflict) totalConflicts++;
 
+      // Count independent sources by distinct domains, not raw result count
+      const independentCount = this.countIndependentSources(group);
       const { trust, score } = determineTrust(
-        group.length,
+        independentCount,
         raw.length,
         hasConflict,
+        minSources,
       );
 
       const primary = group[0];
@@ -68,6 +71,19 @@ export class VerifyEngine {
     }
 
     return groups;
+  }
+
+  private countIndependentSources(group: RawSearchResult[]): number {
+    const domains = new Set<string>();
+    for (const r of group) {
+      try {
+        const domain = new URL(r.url).hostname.replace(/^www\./, "");
+        domains.add(domain);
+      } catch {
+        domains.add(r.url);
+      }
+    }
+    return domains.size;
   }
 
   private checkConflicts(group: RawSearchResult[]): boolean {

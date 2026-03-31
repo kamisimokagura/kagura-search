@@ -79,6 +79,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return {
             title: sanitized[0]?.title ?? r.title,
             url: r.url,
+            snippet: sanitized[0]?.content ?? r.snippet,
             engine: r.engine,
           };
         });

@@ -125,7 +125,9 @@ export class KaguraSearch {
     const discoverCount = maxResults * 2;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);
-    const verified = this.verifyEngine.verify(raw, sanitized);
+    // Use sources as the minimum independent-source threshold for verification
+    const minSources = sources ?? 2;
+    const verified = this.verifyEngine.verify(raw, sanitized, minSources);
     const safe = this.outputShield
       .protect(verified.results)
       .slice(0, maxResults);
