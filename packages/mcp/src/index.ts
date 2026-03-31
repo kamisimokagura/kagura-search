@@ -54,13 +54,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "kagura_discover": {
-      const response = await kagura.search(args!.query as string, {
-        maxResults: args!.maxResults as number,
-      });
-      const urls = response.results.map((r) => ({
+      // Use raw discover to return all URLs before verification grouping,
+      // so multiple pages about the same topic are not collapsed into one
+      const raw = await kagura.discover(
+        args!.query as string,
+        args!.maxResults as number,
+      );
+      const urls = raw.map((r) => ({
         title: r.title,
-        url: r.source,
-        trust: r.trust,
+        url: r.url,
+        engine: r.engine,
       }));
       return {
         content: [{ type: "text", text: JSON.stringify(urls, null, 2) }],

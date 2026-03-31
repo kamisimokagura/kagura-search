@@ -8,6 +8,7 @@ export type {
   Platform,
   SearchQuery,
   SecurityReport,
+  RawSearchResult,
 } from "./types.js";
 export { InputGuard } from "./security/input-guard.js";
 export { OutputShield } from "./security/output-shield.js";

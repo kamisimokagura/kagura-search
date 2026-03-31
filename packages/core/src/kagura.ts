@@ -1,8 +1,14 @@
-import type { KaguraConfig, KaguraResponse, SearchQuery } from "./types.js";
+import type {
+  KaguraConfig,
+  KaguraResponse,
+  RawSearchResult,
+  SearchQuery,
+} from "./types.js";
 import { loadConfig } from "./config.js";
 import { InputGuard } from "./security/input-guard.js";
 import { OutputShield } from "./security/output-shield.js";
 import { SearchEngine } from "./search/engine.js";
+import type { SearchProvider } from "./search/provider.js";
 import { VerifyEngine } from "./verify/engine.js";
 import { SearXNGProvider } from "./search/providers/searxng.js";
 import { DuckDuckGoProvider } from "./search/providers/duckduckgo.js";
@@ -20,12 +26,31 @@ export class KaguraSearch {
     this.outputShield = new OutputShield();
     this.verifyEngine = new VerifyEngine();
 
-    const providers = [
-      new SearXNGProvider(this.config.providers.searxng?.baseUrl),
-      new DuckDuckGoProvider(),
-    ];
-
+    const providers = this.buildProviders();
     this.searchEngine = new SearchEngine(providers);
+  }
+
+  private buildProviders(): SearchProvider[] {
+    const providers: SearchProvider[] = [];
+    const cfg = this.config.providers;
+
+    // Only add providers that are configured or have no explicit enabled:false
+    const searxngCfg = cfg.searxng;
+    if (searxngCfg?.enabled !== false) {
+      providers.push(new SearXNGProvider(searxngCfg?.baseUrl));
+    }
+
+    const ddgCfg = cfg.duckduckgo;
+    if (ddgCfg?.enabled !== false) {
+      providers.push(new DuckDuckGoProvider());
+    }
+
+    // Fallback: if no providers are enabled, use defaults
+    if (providers.length === 0) {
+      providers.push(new SearXNGProvider(), new DuckDuckGoProvider());
+    }
+
+    return providers;
   }
 
   async search(
@@ -78,6 +103,56 @@ export class KaguraSearch {
   }
 
   async verify(claim: string): Promise<KaguraResponse> {
-    return this.search(claim, { deep: true });
+    // verify() uses 2x discovery like deep mode but preserves ALL results
+    // including unverified ones, so callers can distinguish "found but not
+    // corroborated" from "not found at all"
+    const startTime = Date.now();
+
+    const security = this.inputGuard.validate(claim);
+    if (security.blocked) {
+      return {
+        query: claim,
+        results: [],
+        meta: {
+          engines: [],
+          totalResults: 0,
+          conflicts: 0,
+          searchTimeMs: Date.now() - startTime,
+        },
+      };
+    }
+
+    const sanitized = security.sanitizedQuery ?? claim;
+    const maxResults = this.config.maxResults ?? 10;
+    const discoverCount = maxResults * 2;
+
+    const raw = await this.searchEngine.discover(sanitized, discoverCount);
+    const verified = this.verifyEngine.verify(raw, sanitized);
+    const safe = this.outputShield
+      .protect(verified.results)
+      .slice(0, maxResults);
+
+    return {
+      query: claim,
+      results: safe,
+      meta: {
+        engines: this.searchEngine.lastEnginesUsed,
+        totalResults: safe.length,
+        conflicts: verified.conflicts,
+        searchTimeMs: Date.now() - startTime,
+      },
+    };
+  }
+
+  async discover(
+    query: string,
+    maxResults?: number,
+  ): Promise<RawSearchResult[]> {
+    const security = this.inputGuard.validate(query);
+    if (security.blocked) return [];
+
+    const sanitized = security.sanitizedQuery ?? query;
+    const count = maxResults ?? this.config.maxResults ?? 10;
+    return this.searchEngine.discover(sanitized, count);
   }
 }
