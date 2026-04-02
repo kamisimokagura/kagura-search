@@ -41,6 +41,26 @@ describe("config", () => {
     expect(config.timeout).toBe(10000);
     expect(config.providers.searxng?.baseUrl).toBe("http://localhost:8888");
   });
+
+  it("deep-merges provider fields instead of replacing", () => {
+    const config = loadConfig({
+      providers: {
+        searxng: { enabled: false, baseUrl: "http://original:8080" },
+      },
+    });
+    // Override baseUrl via a second merge layer
+    const config2 = loadConfig({
+      providers: {
+        searxng: {
+          baseUrl: "http://new:9090",
+          enabled: false,
+        },
+      },
+    });
+    // enabled should still be present even when baseUrl is overridden
+    expect(config2.providers.searxng?.enabled).toBe(false);
+    expect(config2.providers.searxng?.baseUrl).toBe("http://new:9090");
+  });
 });
 
 describe("loadConfigFromFile", () => {
@@ -132,5 +152,39 @@ describe("resolveProviderEnvValues", () => {
 
     const resolved = resolveProviderEnvValues(config);
     expect(resolved.providers.searxng?.baseUrl).toBe("http://explicit:9090");
+  });
+
+  it("marks provider with _envBaseUrlFailed when env: baseUrl is unresolved", () => {
+    delete process.env.UNSET_SEARXNG_URL;
+
+    const config: KaguraConfig = {
+      providers: {
+        searxng: { baseUrl: "env:UNSET_SEARXNG_URL" },
+      },
+    };
+
+    const resolved = resolveProviderEnvValues(config);
+    expect(resolved.providers.searxng?.baseUrl).toBeUndefined();
+    expect(
+      (resolved.providers.searxng as Record<string, unknown>)
+        ?._envBaseUrlFailed,
+    ).toBe(true);
+    // enabled should NOT be set to false — that's reserved for manual disable
+    expect(resolved.providers.searxng?.enabled).toBeUndefined();
+  });
+
+  it("clears unresolved env: apiKey without disabling", () => {
+    delete process.env.UNSET_API_KEY;
+
+    const config: KaguraConfig = {
+      providers: {
+        brave: { apiKey: "env:UNSET_API_KEY" },
+      },
+    };
+
+    const resolved = resolveProviderEnvValues(config);
+    expect(resolved.providers.brave?.apiKey).toBeUndefined();
+    // enabled should NOT be auto-set — only baseUrl triggers fail-closed
+    expect(resolved.providers.brave?.enabled).toBeUndefined();
   });
 });

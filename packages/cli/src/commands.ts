@@ -2,6 +2,14 @@ import { Command } from "commander";
 import { KaguraSearch } from "@kagura/core";
 import type { Platform } from "@kagura/core";
 import { formatResult, formatMeta } from "./formatter.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
+);
 
 export function createProgram(): Command {
   const program = new Command();
@@ -9,7 +17,7 @@ export function createProgram(): Command {
   program
     .name("kagura")
     .description("Kagura Search - truth-illuminating search engine")
-    .version("0.1.0")
+    .version(pkg.version)
     .argument("<query>", "Search query")
     .option(
       "-p, --platform <platform>",
@@ -23,21 +31,39 @@ export function createProgram(): Command {
     )
     .option("-n, --max-results <n>", "Maximum results", "10")
     .action(async (query: string, opts) => {
+      const VALID_PLATFORMS = new Set([
+        "web",
+        "twitter",
+        "reddit",
+        "youtube",
+        "instagram",
+        "tiktok",
+        "github",
+      ]);
+
+      if (opts.platform && !VALID_PLATFORMS.has(opts.platform)) {
+        console.error(
+          `Error: unknown platform "${opts.platform}". Valid: ${[...VALID_PLATFORMS].join(", ")}`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const maxResults = parseInt(opts.maxResults, 10);
       const kagura = new KaguraSearch({
         deep: opts.deep,
-        maxResults: parseInt(opts.maxResults, 10),
+        maxResults:
+          Number.isFinite(maxResults) && maxResults >= 1 ? maxResults : 10,
       });
 
       const platform = opts.platform as Platform | undefined;
-      const platformDomain = platform ? platformToSite(platform) : "";
-      const searchQuery = platformDomain
-        ? `${query} site:${platformDomain}`
-        : query;
 
-      const response = await kagura.search(searchQuery, {
+      // Don't manually prepend site: — kagura.search() handles it via platform option
+      const response = await kagura.search(query, {
         platform,
         deep: opts.deep,
-        maxResults: parseInt(opts.maxResults, 10),
+        maxResults:
+          Number.isFinite(maxResults) && maxResults >= 1 ? maxResults : 10,
       });
 
       if (opts.format === "json") {
@@ -66,7 +92,7 @@ export function createProgram(): Command {
         return;
       }
 
-      console.log(`\n\x1b[1mKagura Search v0.1.0\x1b[0m`);
+      console.log(`\n\x1b[1mKagura Search v${pkg.version}\x1b[0m`);
       console.log(`${"=".repeat(40)}`);
       console.log(formatMeta(response.meta));
       console.log("");
@@ -83,17 +109,4 @@ export function createProgram(): Command {
     });
 
   return program;
-}
-
-function platformToSite(platform: Platform): string {
-  const map: Record<Platform, string> = {
-    web: "",
-    twitter: "x.com",
-    reddit: "reddit.com",
-    youtube: "youtube.com",
-    instagram: "instagram.com",
-    tiktok: "tiktok.com",
-    github: "github.com",
-  };
-  return map[platform] ?? "";
 }

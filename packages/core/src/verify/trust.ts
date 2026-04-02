@@ -65,8 +65,8 @@ export function detectNumberConflict(
     for (const b of numbersB) {
       if (a <= 0 || b <= 0) continue;
       const ratio = Math.max(a, b) / Math.min(a, b);
-      // Only consider numbers in the same order of magnitude (ratio < 3)
-      if (ratio < 3 && ratio < bestRatio) {
+      // Consider numbers within 10x of each other as potential matches
+      if (ratio < 10 && ratio < bestRatio) {
         bestMatch = b;
         bestRatio = ratio;
       }
@@ -80,6 +80,6 @@ export function detectNumberConflict(
     }
   }
 
-  // Require at least one matched pair and majority disagreement
-  return matchedPairs >= 1 && conflictingPairs > matchedPairs / 2;
+  // Require at least one matched pair with any disagreement
+  return matchedPairs >= 1 && conflictingPairs >= 1;
 }

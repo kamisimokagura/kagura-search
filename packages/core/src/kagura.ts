@@ -37,12 +37,27 @@ export class KaguraSearch {
 
     // Only add providers that are not explicitly disabled
     const searxngCfg = cfg.searxng;
-    if (searxngCfg?.enabled !== false) {
+    const searxngOk =
+      searxngCfg?.enabled !== false &&
+      (searxngCfg as Record<string, unknown> | undefined)?._envBaseUrlFailed !==
+        true;
+    if (searxngOk) {
       providers.push(new SearXNGProvider(searxngCfg?.baseUrl, timeout));
     }
 
     const ddgCfg = cfg.duckduckgo;
-    if (ddgCfg?.enabled !== false) {
+    // If SearXNG's env: baseUrl was configured but unresolved, also suppress
+    // DuckDuckGo to fail closed — the user intended a private SearXNG instance,
+    // so silently falling back to a public engine would leak queries.
+    // This does NOT trigger for manual `enabled: false` (intentional disable).
+    const searxngEnvFailed =
+      searxngCfg !== undefined &&
+      (searxngCfg as Record<string, unknown>)._envBaseUrlFailed === true;
+    const ddgExplicitlyEnabled = ddgCfg?.enabled === true;
+    if (
+      ddgCfg?.enabled !== false &&
+      (!searxngEnvFailed || ddgExplicitlyEnabled)
+    ) {
       providers.push(new DuckDuckGoProvider(timeout));
     }
 
@@ -72,7 +87,9 @@ export class KaguraSearch {
     }
 
     const sanitized = security.sanitizedQuery ?? query;
-    const maxResults = options?.maxResults ?? this.config.maxResults ?? 10;
+    const rawMax = options?.maxResults ?? this.config.maxResults ?? 10;
+    const maxResults =
+      Number.isFinite(rawMax) && rawMax >= 1 ? Math.floor(rawMax) : 10;
     const isDeep = options?.deep ?? this.config.deep;
     const discoverCount = isDeep ? maxResults * 2 : maxResults;
 
@@ -128,9 +145,12 @@ export class KaguraSearch {
     }
 
     const sanitized = security.sanitizedQuery ?? claim;
-    const maxResults = this.config.maxResults ?? 10;
+    const rawMax = this.config.maxResults ?? 10;
+    const maxResults =
+      Number.isFinite(rawMax) && rawMax >= 1 ? Math.floor(rawMax) : 10;
     // sources controls verification threshold; default 2 consistent with search()
-    const minSources = sources ?? 2;
+    // Clamp to at least 2 so "verified" always means 2+ independent sources
+    const minSources = Math.max(2, sources ?? 2);
     const discoverCount = Math.max(maxResults, minSources) * 3;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);
@@ -159,9 +179,30 @@ export class KaguraSearch {
     if (security.blocked) return [];
 
     const sanitized = security.sanitizedQuery ?? query;
-    const count = maxResults ?? this.config.maxResults ?? 10;
+    const rawCount = maxResults ?? this.config.maxResults ?? 10;
+    const count =
+      Number.isFinite(rawCount) && rawCount >= 1 ? Math.floor(rawCount) : 10;
     const raw = await this.searchEngine.discover(sanitized, count);
-    return raw.slice(0, count);
+    // Sanitize discover results through OutputShield to strip PI and block
+    // private/internal URLs, matching the security guarantees of search()/verify()
+    const shielded = this.outputShield.protect(
+      raw.map((r) => ({
+        title: r.title,
+        source: r.url,
+        content: r.snippet,
+        trust: "unverified" as const,
+        score: 0,
+        matchedSources: 0,
+      })),
+    );
+    return shielded
+      .map((s) => ({
+        title: s.title,
+        url: s.source,
+        snippet: s.content,
+        engine: raw.find((r) => r.url === s.source)?.engine ?? "unknown",
+      }))
+      .slice(0, count);
   }
 
   private platformSite(platform: string): string {

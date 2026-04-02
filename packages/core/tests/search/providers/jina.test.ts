@@ -35,7 +35,9 @@ describe("JinaExtractor", () => {
 
     await extractor.extract("https://example.com/page");
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toBe("https://r.jina.ai/https://example.com/page");
+    expect(url).toBe(
+      "https://r.jina.ai/" + encodeURIComponent("https://example.com/page"),
+    );
   });
 
   it("extract returns null on error", async () => {

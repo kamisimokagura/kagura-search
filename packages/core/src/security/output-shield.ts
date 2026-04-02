@@ -1,7 +1,12 @@
 import type { SearchResult } from "../types.js";
 import { PI_PATTERNS } from "./patterns.js";
+import { InputGuard } from "./input-guard.js";
+
+const MAX_CONTENT_LENGTH = 50000;
 
 export class OutputShield {
+  private guard = new InputGuard();
+
   protect(results: SearchResult[]): SearchResult[] {
     return results
       .filter((r) => this.hasValidSource(r))
@@ -9,7 +14,10 @@ export class OutputShield {
   }
 
   private hasValidSource(result: SearchResult): boolean {
-    return result.source.length > 0 && /^https?:\/\//.test(result.source);
+    // Use the same SSRF-aware validation as InputGuard to prevent
+    // surfacing internal/private URLs from untrusted providers
+    const check = this.guard.validateUrl(result.source);
+    return !check.blocked;
   }
 
   private sanitizeResult(result: SearchResult): SearchResult {
@@ -21,7 +29,11 @@ export class OutputShield {
   }
 
   private sanitizeContent(content: string): string {
-    let cleaned = this.stripZeroWidth(content);
+    // Truncate before regex processing to prevent ReDoS on huge inputs
+    const wasTruncated = content.length > MAX_CONTENT_LENGTH;
+    let cleaned = wasTruncated ? content.slice(0, MAX_CONTENT_LENGTH) : content;
+
+    cleaned = this.stripZeroWidth(cleaned);
 
     for (const { pattern, severity } of PI_PATTERNS) {
       // Only strip patterns with "block" severity — warn patterns (e.g. SQL keywords)
@@ -35,10 +47,13 @@ export class OutputShield {
     }
 
     cleaned = cleaned.replace(/\[removed\]\s*/g, "").trim();
+    if (wasTruncated) {
+      cleaned += "\n\n[content truncated — original exceeded 50KB]";
+    }
     return cleaned;
   }
 
   private stripZeroWidth(text: string): string {
-    return text.replace(/[\u200B\u200C\u200D\uFEFF\u00AD]/g, "");
+    return text.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u2060\u180E]/g, "");
   }
 }

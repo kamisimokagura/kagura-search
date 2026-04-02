@@ -36,10 +36,27 @@ export class SearchEngine {
   private deduplicate(results: RawSearchResult[]): RawSearchResult[] {
     const seen = new Set<string>();
     return results.filter((r) => {
-      const normalized = r.url.replace(/\/+$/, "").toLowerCase();
-      if (seen.has(normalized)) return false;
-      seen.add(normalized);
-      return true;
+      // Only normalize the hostname case-insensitively; preserve path case
+      // so that /API and /api are not collapsed into one result
+      try {
+        const url = new URL(r.url);
+        const normalized =
+          url.protocol +
+          "//" +
+          url.host.toLowerCase() +
+          url.pathname.replace(/\/+$/, "") +
+          url.search +
+          url.hash;
+        if (seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      } catch {
+        // If URL parsing fails, use raw string with trailing slash stripped
+        const raw = r.url.replace(/\/+$/, "");
+        if (seen.has(raw)) return false;
+        seen.add(raw);
+        return true;
+      }
     });
   }
 }

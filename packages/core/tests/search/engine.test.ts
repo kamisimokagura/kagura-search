@@ -94,4 +94,48 @@ describe("SearchEngine", () => {
 
     expect(engine.lastEnginesUsed).toContain("searxng");
   });
+
+  it("preserves case-sensitive paths during deduplication", async () => {
+    const p1 = createMockProvider("p1", 0, [
+      {
+        title: "API endpoint",
+        url: "https://example.com/API/v1",
+        snippet: "api",
+        engine: "p1",
+      },
+      {
+        title: "api endpoint",
+        url: "https://example.com/api/v1",
+        snippet: "api",
+        engine: "p1",
+      },
+    ]);
+
+    const engine = new SearchEngine([p1]);
+    const results = await engine.discover("test");
+
+    expect(results).toHaveLength(2);
+  });
+
+  it("deduplicates same URL with different hostname case", async () => {
+    const p1 = createMockProvider("p1", 0, [
+      {
+        title: "Same A",
+        url: "https://Example.COM/page",
+        snippet: "a",
+        engine: "p1",
+      },
+      {
+        title: "Same B",
+        url: "https://example.com/page",
+        snippet: "b",
+        engine: "p1",
+      },
+    ]);
+
+    const engine = new SearchEngine([p1]);
+    const results = await engine.discover("test");
+
+    expect(results).toHaveLength(1);
+  });
 });

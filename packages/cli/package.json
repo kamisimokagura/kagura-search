@@ -7,13 +7,18 @@
     "kagura": "dist/index.js"
   },
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepare": "tsc"
   },
   "dependencies": {
-    "@kagura/core": "*",
+    "@kagura/core": "workspace:*",
     "commander": "^13.0.0"
   },
   "devDependencies": {

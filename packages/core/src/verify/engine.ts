@@ -34,7 +34,16 @@ export class VerifyEngine {
         minSources,
       );
 
-      const primary = group[0];
+      // Prefer a group member with a valid URL as the representative result
+      const primary =
+        group.find((r) => {
+          try {
+            const u = new URL(r.url);
+            return u.protocol === "http:" || u.protocol === "https:";
+          } catch {
+            return false;
+          }
+        }) ?? group[0];
       results.push({
         title: primary.title,
         source: primary.url,
@@ -60,7 +69,10 @@ export class VerifyEngine {
 
       for (let j = i + 1; j < results.length; j++) {
         if (assigned.has(j)) continue;
-        const sim = calculateSimilarity(results[i].snippet, results[j].snippet);
+        // Compare snippets when available; fall back to titles when both are empty
+        const textA = results[i].snippet || results[i].title;
+        const textB = results[j].snippet || results[j].title;
+        const sim = calculateSimilarity(textA, textB);
         if (sim >= this.SIMILARITY_THRESHOLD) {
           group.push(results[j]);
           assigned.add(j);
@@ -90,9 +102,9 @@ export class VerifyEngine {
     if (group.length < 2) return false;
 
     for (let i = 0; i < group.length; i++) {
-      const numsI = extractNumbers(group[i].snippet);
+      const numsI = extractNumbers(group[i].snippet || group[i].title);
       for (let j = i + 1; j < group.length; j++) {
-        const numsJ = extractNumbers(group[j].snippet);
+        const numsJ = extractNumbers(group[j].snippet || group[j].title);
         if (detectNumberConflict(numsI, numsJ)) return true;
       }
     }

@@ -66,7 +66,7 @@ cd docker && docker compose up -d
 +---------------------v-----------------------+
 |  Layer 2: SearchEngine                      |
 |  - Parallel multi-engine queries            |
-|  - Tier-based fallback (0->1->2)            |
+|  - Parallel multi-provider querying          |
 |  - URL deduplication                        |
 |  +----------+ +-----------+ +------------+  |
 |  | SearXNG  | |DuckDuckGo | | Jina Reader|  |
@@ -115,13 +115,13 @@ kagura "machine learning" -n 5
 
 ## MCP Tools
 
-| Tool              | Description                    |
-| ----------------- | ------------------------------ |
-| `kagura_search`   | Web search with trust scoring  |
-| `kagura_discover` | URL discovery (titles + trust) |
-| `kagura_extract`  | Markdown content extraction    |
-| `kagura_verify`   | Claim cross-verification       |
-| `kagura_platform` | Platform-optimized search      |
+| Tool              | Description                       |
+| ----------------- | --------------------------------- |
+| `kagura_search`   | Web search with trust scoring     |
+| `kagura_discover` | URL discovery (titles + snippets) |
+| `kagura_extract`  | Markdown content extraction       |
+| `kagura_verify`   | Claim cross-verification          |
+| `kagura_platform` | Platform-optimized search         |
 
 ### Setup for Popular AI Tools
 
@@ -174,17 +174,32 @@ Create `~/.kagura/config.json`:
 }
 ```
 
+### Privacy Note
+
+By default, Kagura Search queries **all enabled providers in parallel** (SearXNG + DuckDuckGo). If you run a private SearXNG instance and want to prevent queries from being sent to public engines, explicitly disable DuckDuckGo:
+
+```json
+{
+  "providers": {
+    "searxng": { "baseUrl": "http://my-private-searxng:8888" },
+    "duckduckgo": { "enabled": false }
+  }
+}
+```
+
+If you use `env:` references for provider URLs and the environment variable is missing at runtime, the provider is automatically disabled and DuckDuckGo is also suppressed to prevent silent query leakage.
+
 ### Provider Tiers
 
-| Tier | Provider         | API Key Required |
-| ---- | ---------------- | ---------------- |
-| 0    | SearXNG          | No               |
-| 0    | DuckDuckGo       | No               |
-| 0    | Jina Reader      | No               |
-| 1    | YouTube Data API | Free key         |
-| 1    | GitHub Token     | Free             |
-| 2    | Firecrawl        | Paid             |
-| 2    | Brave Search     | Paid             |
+| Tier | Provider         | API Key Required | Status    |
+| ---- | ---------------- | ---------------- | --------- |
+| 0    | SearXNG          | No               | Available |
+| 0    | DuckDuckGo       | No               | Available |
+| 0    | Jina Reader      | No               | Available |
+| 1    | YouTube Data API | Free key         | Planned   |
+| 1    | GitHub Token     | Free             | Planned   |
+| 2    | Firecrawl        | Paid             | Planned   |
+| 2    | Brave Search     | Paid             | Planned   |
 
 ## Trust Levels
 

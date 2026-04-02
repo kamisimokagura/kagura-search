@@ -53,7 +53,19 @@ export function resolveProviderEnvValues(config: KaguraConfig): KaguraConfig {
       resolved.apiKey = resolveEnvValue(resolved.apiKey);
     }
     if (resolved.baseUrl) {
+      const original = resolved.baseUrl;
       resolved.baseUrl = resolveEnvValue(resolved.baseUrl);
+      // If an env: baseUrl reference was explicitly configured but unresolved,
+      // mark the provider so buildProviders() can fail closed for public-fallback
+      // providers. Skip if the provider is already manually disabled (enabled=false)
+      // to avoid false fail-closed triggers on intentional disables.
+      if (
+        original.startsWith("env:") &&
+        !resolved.baseUrl &&
+        resolved.enabled !== false
+      ) {
+        (resolved as Record<string, unknown>)._envBaseUrlFailed = true;
+      }
     }
 
     resolvedProviders[name] = resolved;
@@ -79,15 +91,26 @@ export function loadConfig(userConfig?: Partial<KaguraConfig>): KaguraConfig {
   const defaults = getDefaultConfig();
   const fileConfig = loadConfigFromFile();
 
+  // Deep-merge providers so that overriding one field doesn't drop the rest
+  const allProviderNames = new Set([
+    ...Object.keys(defaults.providers),
+    ...Object.keys(fileConfig.providers ?? {}),
+    ...Object.keys(userConfig?.providers ?? {}),
+  ]);
+  const mergedProviders: Record<string, SearchProviderConfig> = {};
+  for (const name of allProviderNames) {
+    mergedProviders[name] = {
+      ...defaults.providers[name],
+      ...fileConfig.providers?.[name],
+      ...userConfig?.providers?.[name],
+    };
+  }
+
   const merged: KaguraConfig = {
     ...defaults,
     ...fileConfig,
     ...userConfig,
-    providers: {
-      ...defaults.providers,
-      ...fileConfig.providers,
-      ...userConfig?.providers,
-    },
+    providers: mergedProviders,
   };
 
   return resolveProviderEnvValues(merged);
