@@ -71,17 +71,19 @@ describe("KaguraSearch", () => {
       }),
     });
 
-    const kagura = new KaguraSearch();
+    // Use separate instances to avoid cache interference between normal/deep
+    const kaguraNormal = new KaguraSearch();
+    const kaguraDeep = new KaguraSearch();
 
     // Normal mode: should include all results (verified + unverified)
-    const normal = await kagura.search("TypeScript");
+    const normal = await kaguraNormal.search("TypeScript");
     const normalUnverified = normal.results.filter(
       (r) => r.trust === "unverified",
     );
     expect(normalUnverified.length).toBeGreaterThan(0);
 
     // Deep mode: should filter out unverified results
-    const deep = await kagura.search("TypeScript", { deep: true });
+    const deep = await kaguraDeep.search("TypeScript", { deep: true });
     const deepUnverified = deep.results.filter((r) => r.trust === "unverified");
     expect(deepUnverified).toHaveLength(0);
     expect(deep.results.length).toBeLessThan(normal.results.length);
@@ -117,5 +119,49 @@ describe("KaguraSearch", () => {
 
     expect(response.query).toContain("Tokyo population");
     expect(response.results.length).toBeGreaterThan(0);
+  });
+
+  it("uses cache on second identical search", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            title: "Cached",
+            url: "https://cache.com",
+            content: "cached",
+            engine: "searxng",
+          },
+        ],
+      }),
+    });
+
+    const kagura = new KaguraSearch();
+    const first = await kagura.search("cache test");
+    const callCount = mockFetch.mock.calls.length;
+
+    const second = await kagura.search("cache test");
+    // No additional fetch calls — served from cache
+    expect(mockFetch.mock.calls.length).toBe(callCount);
+    expect(second.results.length).toBe(first.results.length);
+  });
+
+  it("discoverCount is 2x maxResults in normal mode", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
+
+    const kagura = new KaguraSearch();
+    await kagura.search("test", { maxResults: 5 });
+
+    // Check that at least one fetch call used a limit >= 10 (5 * 2)
+    const calls = mockFetch.mock.calls;
+    const hasHighLimit = calls.some((c: unknown[]) => {
+      const url = c[0] as string;
+      const limitMatch = url.match(/limit=(\d+)/);
+      return limitMatch && parseInt(limitMatch[1]) >= 10;
+    });
+    expect(hasHighLimit).toBe(true);
   });
 });

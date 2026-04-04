@@ -12,6 +12,9 @@ import type { SearchProvider } from "./search/provider.js";
 import { VerifyEngine } from "./verify/engine.js";
 import { SearXNGProvider } from "./search/providers/searxng.js";
 import { DuckDuckGoProvider } from "./search/providers/duckduckgo.js";
+import { SearchCache } from "./search/cache.js";
+import { BraveHTMLProvider } from "./search/providers/brave-html.js";
+import { BraveAPIProvider } from "./search/providers/brave-api.js";
 
 export class KaguraSearch {
   private config: KaguraConfig;
@@ -19,12 +22,14 @@ export class KaguraSearch {
   private outputShield: OutputShield;
   private searchEngine: SearchEngine;
   private verifyEngine: VerifyEngine;
+  private cache: SearchCache;
 
   constructor(config?: Partial<KaguraConfig>) {
     this.config = loadConfig(config);
     this.inputGuard = new InputGuard();
     this.outputShield = new OutputShield();
     this.verifyEngine = new VerifyEngine();
+    this.cache = new SearchCache(this.config.cache);
 
     const providers = this.buildProviders();
     this.searchEngine = new SearchEngine(providers);
@@ -42,7 +47,13 @@ export class KaguraSearch {
       (searxngCfg as Record<string, unknown> | undefined)?._envBaseUrlFailed !==
         true;
     if (searxngOk) {
-      providers.push(new SearXNGProvider(searxngCfg?.baseUrl, timeout));
+      providers.push(
+        new SearXNGProvider({
+          instances: searxngCfg?.instances,
+          baseUrl: searxngCfg?.baseUrl,
+          timeout,
+        }),
+      );
     }
 
     const ddgCfg = cfg.duckduckgo;
@@ -59,6 +70,18 @@ export class KaguraSearch {
       (!searxngEnvFailed || ddgExplicitlyEnabled)
     ) {
       providers.push(new DuckDuckGoProvider(timeout));
+    }
+
+    // Brave HTML scraper
+    const braveCfg = cfg.brave;
+    if (braveCfg?.enabled !== false) {
+      providers.push(new BraveHTMLProvider(timeout));
+    }
+
+    // Brave API (optional — only when API key is available)
+    const braveApiCfg = cfg["brave-api"];
+    if (braveApiCfg?.apiKey) {
+      providers.push(new BraveAPIProvider(braveApiCfg.apiKey, timeout));
     }
 
     // No fallback: if all providers are explicitly disabled,
@@ -91,7 +114,7 @@ export class KaguraSearch {
     const maxResults =
       Number.isFinite(rawMax) && rawMax >= 1 ? Math.floor(rawMax) : 10;
     const isDeep = options?.deep ?? this.config.deep;
-    const discoverCount = isDeep ? maxResults * 2 : maxResults;
+    const discoverCount = isDeep ? maxResults * 3 : maxResults * 2;
 
     // Apply platform site: prefix to narrow search scope (skip for "web" or unknown)
     const platform = options?.platform;
@@ -99,6 +122,14 @@ export class KaguraSearch {
     const searchQuery = platformDomain
       ? `${sanitized} site:${platformDomain}`
       : sanitized;
+
+    const cached = this.cache.get(searchQuery, maxResults);
+    if (cached) {
+      return {
+        ...cached,
+        meta: { ...cached.meta, searchTimeMs: Date.now() - startTime },
+      };
+    }
 
     const raw = await this.searchEngine.discover(searchQuery, discoverCount);
     const verified = this.verifyEngine.verify(raw, sanitized);
@@ -112,7 +143,7 @@ export class KaguraSearch {
     // Enforce maxResults after all filtering
     safe = safe.slice(0, maxResults);
 
-    return {
+    const response: KaguraResponse = {
       query,
       results: safe,
       meta: {
@@ -122,6 +153,10 @@ export class KaguraSearch {
         searchTimeMs: Date.now() - startTime,
       },
     };
+
+    this.cache.set(searchQuery, maxResults, response);
+
+    return response;
   }
 
   async verify(claim: string, sources?: number): Promise<KaguraResponse> {
@@ -151,7 +186,7 @@ export class KaguraSearch {
     // sources controls verification threshold; default 2 consistent with search()
     // Clamp to at least 2 so "verified" always means 2+ independent sources
     const minSources = Math.max(2, sources ?? 2);
-    const discoverCount = Math.max(maxResults, minSources) * 3;
+    const discoverCount = Math.max(maxResults, minSources) * 4;
 
     const raw = await this.searchEngine.discover(sanitized, discoverCount);
     const verified = this.verifyEngine.verify(raw, sanitized, minSources);
