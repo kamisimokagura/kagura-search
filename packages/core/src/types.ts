@@ -37,6 +37,7 @@ export interface SearchProviderConfig {
   apiKey?: string;
   baseUrl?: string;
   enabled?: boolean;
+  instances?: string[];
 }
 
 export interface AIConfig {
@@ -45,9 +46,15 @@ export interface AIConfig {
   apiKey: string;
 }
 
+export interface CacheConfig {
+  maxEntries?: number;
+  ttlMs?: number;
+}
+
 export interface KaguraConfig {
   providers: Record<string, SearchProviderConfig>;
   ai?: AIConfig;
+  cache?: CacheConfig;
   deep?: boolean;
   maxResults?: number;
   timeout?: number;

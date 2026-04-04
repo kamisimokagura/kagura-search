@@ -61,6 +61,46 @@ describe("config", () => {
     expect(config2.providers.searxng?.enabled).toBe(false);
     expect(config2.providers.searxng?.baseUrl).toBe("http://new:9090");
   });
+
+  it("loads brave provider config", () => {
+    const config = loadConfig({
+      providers: {
+        brave: { enabled: true },
+      },
+    });
+    expect(config.providers.brave).toBeDefined();
+    expect(config.providers.brave?.enabled).toBe(true);
+  });
+
+  it("loads brave API key from env: prefix", () => {
+    process.env.TEST_BRAVE_KEY = "test-api-key";
+    const config = loadConfig({
+      providers: {
+        "brave-api": { apiKey: "env:TEST_BRAVE_KEY" },
+      },
+    });
+    expect(config.providers["brave-api"]?.apiKey).toBe("test-api-key");
+    delete process.env.TEST_BRAVE_KEY;
+  });
+
+  it("loads cache config", () => {
+    const config = loadConfig({ cache: { maxEntries: 50, ttlMs: 60000 } });
+    expect(config.cache?.maxEntries).toBe(50);
+    expect(config.cache?.ttlMs).toBe(60000);
+  });
+
+  it("loads SearXNG instances array", () => {
+    const config = loadConfig({
+      providers: {
+        searxng: {
+          instances: ["https://a.example", "https://b.example"],
+        },
+      },
+    });
+    expect(
+      (config.providers.searxng as Record<string, unknown>)?.instances,
+    ).toEqual(["https://a.example", "https://b.example"]);
+  });
 });
 
 describe("loadConfigFromFile", () => {
