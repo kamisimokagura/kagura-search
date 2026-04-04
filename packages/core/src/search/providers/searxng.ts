@@ -7,15 +7,35 @@ const PUBLIC_INSTANCES = [
   "https://search.bus-hit.me",
 ];
 
+export interface SearXNGConfig {
+  instances?: string[];
+  baseUrl?: string;
+  timeout?: number;
+}
+
 export class SearXNGProvider implements SearchProvider {
   readonly name = "searxng";
   readonly tier = 0 as const;
-  private baseUrl: string;
+  private instances: string[];
   private timeout: number;
 
-  constructor(baseUrl?: string, timeout?: number) {
-    this.baseUrl = baseUrl ?? PUBLIC_INSTANCES[0];
-    this.timeout = timeout ?? 8000;
+  constructor(config?: string | SearXNGConfig, timeout?: number) {
+    if (config === undefined || config === null) {
+      this.instances = [...PUBLIC_INSTANCES];
+      this.timeout = timeout ?? 8000;
+    } else if (typeof config === "string") {
+      this.instances = [config];
+      this.timeout = timeout ?? 8000;
+    } else {
+      if (config.instances && config.instances.length > 0) {
+        this.instances = [...config.instances];
+      } else if (config.baseUrl) {
+        this.instances = [config.baseUrl];
+      } else {
+        this.instances = [...PUBLIC_INSTANCES];
+      }
+      this.timeout = config.timeout ?? timeout ?? 8000;
+    }
   }
 
   isAvailable(): boolean {
@@ -23,8 +43,35 @@ export class SearXNGProvider implements SearchProvider {
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
+    if (this.instances.length === 1) {
+      return this.searchInstance(this.instances[0], query, maxResults);
+    }
+    return this.raceInstances(query, maxResults);
+  }
+
+  private async raceInstances(
+    query: string,
+    maxResults: number,
+  ): Promise<RawSearchResult[]> {
+    const promises = this.instances.map((instance) =>
+      this.searchInstance(instance, query, maxResults),
+    );
+    const settled = await Promise.allSettled(promises);
+    for (const result of settled) {
+      if (result.status === "fulfilled" && result.value.length > 0) {
+        return result.value;
+      }
+    }
+    return [];
+  }
+
+  private async searchInstance(
+    baseUrl: string,
+    query: string,
+    maxResults: number,
+  ): Promise<RawSearchResult[]> {
     const encoded = encodeURIComponent(query).replace(/%20/g, "+");
-    const url = `${this.baseUrl}/search?q=${encoded}&format=json&limit=${maxResults}`;
+    const url = `${baseUrl}/search?q=${encoded}&format=json&limit=${maxResults}`;
 
     try {
       const response = await fetch(url, {
