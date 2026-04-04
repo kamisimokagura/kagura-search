@@ -30,68 +30,90 @@ export class SearchEngine {
     const graceMs = options?.graceMs ?? 500;
     const timeoutMs = options?.timeoutMs ?? 5000;
     const allResults: RawSearchResult[] = [];
-    let firstBatchDone = false;
+    const startTime = Date.now();
 
-    // Wrap each provider to collect results as they arrive
     const providerPromises = available.map((p) =>
       p
         .search(query, maxResults)
         .then((results) => {
           allResults.push(...results);
-          if (!firstBatchDone && allResults.length >= maxResults) {
-            firstBatchDone = true;
-          }
           return results;
         })
         .catch(() => [] as RawSearchResult[]),
     );
 
-    // Race: wait for all providers to finish OR timeout/grace period
-    await Promise.race([
-      Promise.allSettled(providerPromises),
-      new Promise<void>((resolve) => {
-        // Hard timeout
-        const hardTimer = setTimeout(resolve, timeoutMs);
-        // Poll to detect when grace period should start
-        const checkGrace = setInterval(() => {
-          if (firstBatchDone) {
-            clearInterval(checkGrace);
-            clearTimeout(hardTimer);
-            setTimeout(resolve, graceMs);
-          }
-        }, 50);
-        // Clean up interval on hard timeout
-        setTimeout(() => clearInterval(checkGrace), timeoutMs);
-      }),
-    ]);
+    const allDone = Promise.allSettled(providerPromises);
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          clearInterval(poll);
+          clearTimeout(hard);
+          resolve();
+        }
+      };
+
+      const hard = setTimeout(finish, timeoutMs);
+
+      allDone.then(finish);
+
+      const poll = setInterval(() => {
+        if (this.deduplicateCount(allResults) >= maxResults) {
+          clearInterval(poll);
+          // Grace period, but never exceed hard timeout
+          const elapsed = Date.now() - startTime;
+          const effectiveGrace = Math.min(
+            graceMs,
+            Math.max(timeoutMs - elapsed, 0),
+          );
+          setTimeout(finish, effectiveGrace);
+        }
+      }, 50);
+    });
 
     return this.deduplicate(allResults);
   }
 
-  private deduplicate(results: RawSearchResult[]): RawSearchResult[] {
+  private normalizeUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      return (
+        parsed.protocol +
+        "//" +
+        parsed.host.toLowerCase() +
+        parsed.pathname.replace(/\/+$/, "") +
+        parsed.search +
+        parsed.hash
+      );
+    } catch {
+      return url.replace(/\/+$/, "");
+    }
+  }
+
+  private deduplicateCount(results: RawSearchResult[]): number {
     const seen = new Set<string>();
-    return results.filter((r) => {
-      // Only normalize the hostname case-insensitively; preserve path case
-      // so that /API and /api are not collapsed into one result
-      try {
-        const url = new URL(r.url);
-        const normalized =
-          url.protocol +
-          "//" +
-          url.host.toLowerCase() +
-          url.pathname.replace(/\/+$/, "") +
-          url.search +
-          url.hash;
-        if (seen.has(normalized)) return false;
-        seen.add(normalized);
-        return true;
-      } catch {
-        // If URL parsing fails, use raw string with trailing slash stripped
-        const raw = r.url.replace(/\/+$/, "");
-        if (seen.has(raw)) return false;
-        seen.add(raw);
-        return true;
+    for (const r of results) {
+      seen.add(this.normalizeUrl(r.url));
+    }
+    return seen.size;
+  }
+
+  private deduplicate(results: RawSearchResult[]): RawSearchResult[] {
+    const seen = new Map<string, RawSearchResult>();
+    for (const r of results) {
+      const normalized = this.normalizeUrl(r.url);
+      const existing = seen.get(normalized);
+      if (existing) {
+        // Merge engine info
+        if (!existing.engines) existing.engines = [existing.engine];
+        if (!existing.engines.includes(r.engine))
+          existing.engines.push(r.engine);
+      } else {
+        seen.set(normalized, { ...r, engines: [r.engine] });
       }
-    });
+    }
+    return [...seen.values()];
   }
 }

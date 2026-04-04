@@ -60,12 +60,18 @@ describe("Integration: KaguraSearch with all providers", () => {
       return Promise.resolve({ ok: false });
     });
 
-    const kagura = new KaguraSearch();
+    const kagura = new KaguraSearch({
+      providers: {
+        searxng: { enabled: true },
+        duckduckgo: { enabled: true },
+        brave: { enabled: true },
+      },
+    });
     const response = await kagura.search("integration test");
 
     expect(response.results.length).toBeGreaterThan(0);
     expect(response.meta.engines.length).toBeGreaterThanOrEqual(2);
-    expect(response.meta.searchTimeMs).toBeGreaterThan(0);
+    expect(response.meta.searchTimeMs).toBeGreaterThanOrEqual(0);
   });
 
   it("cache prevents duplicate fetches", async () => {

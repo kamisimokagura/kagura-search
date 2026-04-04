@@ -72,15 +72,24 @@ export class KaguraSearch {
       providers.push(new DuckDuckGoProvider(timeout));
     }
 
-    // Brave HTML scraper
+    // Brave HTML scraper — suppress when SearXNG env failed (privacy)
     const braveCfg = cfg.brave;
-    if (braveCfg?.enabled !== false) {
+    const braveExplicitlyEnabled = braveCfg?.enabled === true;
+    if (
+      braveCfg?.enabled !== false &&
+      (!searxngEnvFailed || braveExplicitlyEnabled)
+    ) {
       providers.push(new BraveHTMLProvider(timeout));
     }
 
-    // Brave API (optional — only when API key is available)
+    // Brave API — also respect enabled:false AND suppress when SearXNG env failed
     const braveApiCfg = cfg["brave-api"];
-    if (braveApiCfg?.apiKey) {
+    const braveApiExplicitlyEnabled = braveApiCfg?.enabled === true;
+    if (
+      braveApiCfg?.enabled !== false &&
+      braveApiCfg?.apiKey &&
+      (!searxngEnvFailed || braveApiExplicitlyEnabled)
+    ) {
       providers.push(new BraveAPIProvider(braveApiCfg.apiKey, timeout));
     }
 
@@ -123,7 +132,12 @@ export class KaguraSearch {
       ? `${sanitized} site:${platformDomain}`
       : sanitized;
 
-    const cached = this.cache.get(searchQuery, maxResults);
+    const cached = this.cache.get(
+      searchQuery,
+      maxResults,
+      isDeep,
+      platform ?? "",
+    );
     if (cached) {
       return {
         ...cached,
@@ -154,7 +168,7 @@ export class KaguraSearch {
       },
     };
 
-    this.cache.set(searchQuery, maxResults, response);
+    this.cache.set(searchQuery, maxResults, response, isDeep, platform ?? "");
 
     return response;
   }

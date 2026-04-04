@@ -53,16 +53,20 @@ export class SearXNGProvider implements SearchProvider {
     query: string,
     maxResults: number,
   ): Promise<RawSearchResult[]> {
-    const promises = this.instances.map((instance) =>
-      this.searchInstance(instance, query, maxResults),
-    );
-    const settled = await Promise.allSettled(promises);
-    for (const result of settled) {
-      if (result.status === "fulfilled" && result.value.length > 0) {
-        return result.value;
-      }
+    // Race: resolve as soon as ANY instance returns non-empty results
+    try {
+      return await Promise.any(
+        this.instances.map((instance) =>
+          this.searchInstance(instance, query, maxResults).then((results) => {
+            if (results.length === 0) throw new Error("empty");
+            return results;
+          }),
+        ),
+      );
+    } catch {
+      // All instances failed or returned empty
+      return [];
     }
-    return [];
   }
 
   private async searchInstance(

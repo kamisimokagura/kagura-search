@@ -72,6 +72,7 @@ export interface RawSearchResult {
   url: string;
   snippet: string;
   engine: string;
+  engines?: string[];
 }
 
 export interface SecurityReport {

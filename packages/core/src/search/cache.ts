@@ -20,12 +20,22 @@ export class SearchCache {
     this.ttlMs = config?.ttlMs ?? 300_000; // 5 minutes
   }
 
-  private key(query: string, maxResults: number): string {
-    return `${query}\0${maxResults}`;
+  private key(
+    query: string,
+    maxResults: number,
+    deep = false,
+    platform = "",
+  ): string {
+    return `${query}\0${maxResults}\0${deep}\0${platform}`;
   }
 
-  get(query: string, maxResults: number): KaguraResponse | undefined {
-    const k = this.key(query, maxResults);
+  get(
+    query: string,
+    maxResults: number,
+    deep = false,
+    platform = "",
+  ): KaguraResponse | undefined {
+    const k = this.key(query, maxResults, deep, platform);
     const entry = this.cache.get(k);
     if (!entry) return undefined;
     if (Date.now() > entry.expiresAt) {
@@ -38,8 +48,14 @@ export class SearchCache {
     return entry.response;
   }
 
-  set(query: string, maxResults: number, response: KaguraResponse): void {
-    const k = this.key(query, maxResults);
+  set(
+    query: string,
+    maxResults: number,
+    response: KaguraResponse,
+    deep = false,
+    platform = "",
+  ): void {
+    const k = this.key(query, maxResults, deep, platform);
     this.cache.delete(k);
     if (this.cache.size >= this.maxEntries) {
       const oldest = this.cache.keys().next().value!;

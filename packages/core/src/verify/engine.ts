@@ -36,7 +36,12 @@ export class VerifyEngine {
       );
 
       const qualityBonus = calculateQualityBonus(
-        group.map((r) => ({ snippet: r.snippet, engine: r.engine })),
+        group.flatMap((r) =>
+          (r.engines ?? [r.engine]).map((e) => ({
+            snippet: r.snippet,
+            engine: e,
+          })),
+        ),
       );
       const finalScore = Math.min(score + qualityBonus, 1.0);
 

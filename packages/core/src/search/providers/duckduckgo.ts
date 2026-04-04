@@ -96,7 +96,9 @@ export class DuckDuckGoProvider implements SearchProvider {
 
   private parseJsonp(jsonp: string): RawSearchResult[] {
     try {
-      const match = jsonp.match(/DDG\.pageLayout\.load\('d',(\[[\s\S]*?\])\)/);
+      const match = jsonp.match(
+        /DDG\.pageLayout\.load\(\s*'d'\s*,\s*(\[[\s\S]*?\])\s*\)/,
+      );
       if (!match) return [];
 
       const items = JSON.parse(match[1]) as Array<{
@@ -109,9 +111,9 @@ export class DuckDuckGoProvider implements SearchProvider {
       for (const item of items) {
         if (item.t && item.u) {
           results.push({
-            title: item.t,
+            title: this.stripHtml(item.t),
             url: item.u,
-            snippet: item.a ?? "",
+            snippet: this.stripHtml(item.a ?? ""),
             engine: "duckduckgo",
           });
         }

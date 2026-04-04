@@ -108,23 +108,38 @@ describe("VerifyEngine", () => {
   });
 
   it("gives engine diversity bonus when multiple engines find same result", () => {
-    const raw = [
+    // Single-source unverified result WITHOUT bonus
+    const singleEngine = [
       makeResult(
-        "Same Topic",
-        "https://a.com",
+        "Topic",
+        "https://only.com",
         "TypeScript is a programming language",
         "google",
       ),
+    ];
+    const singleResult = verifier.verify(singleEngine, "TypeScript");
+
+    // Same content from two engines/domains — should get diversity bonus
+    const multiEngine = [
       makeResult(
-        "Same Topic B",
+        "Topic A",
+        "https://a.com",
+        "TypeScript is a programming language developed by Microsoft",
+        "google",
+      ),
+      makeResult(
+        "Topic B",
         "https://b.com",
-        "TypeScript is a programming language",
+        "TypeScript is a programming language developed by Microsoft",
         "duckduckgo",
       ),
     ];
+    const multiResult = verifier.verify(multiEngine, "TypeScript");
 
-    const verified = verifier.verify(raw, "TypeScript");
-    expect(verified.results[0].score).toBeGreaterThan(0.5);
+    // Multi-engine should score higher than single engine
+    expect(multiResult.results[0].score).toBeGreaterThan(
+      singleResult.results[0].score,
+    );
   });
 
   it("gives snippet quality bonus for long snippets", () => {

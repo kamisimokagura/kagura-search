@@ -50,7 +50,11 @@ export class BraveHTMLProvider implements SearchProvider {
 
     const links: { url: string; title: string; index: number }[] = [];
     for (const m of html.matchAll(titleRegex)) {
-      links.push({ url: m[1], title: this.stripHtml(m[2]), index: m.index! });
+      links.push({
+        url: this.decodeEntities(m[1]),
+        title: this.stripHtml(m[2]),
+        index: m.index!,
+      });
     }
 
     const descs: { text: string; index: number }[] = [];
@@ -89,10 +93,10 @@ export class BraveHTMLProvider implements SearchProvider {
       );
       if (!linkMatch) continue;
 
-      const url = linkMatch[1];
+      const url = this.decodeEntities(linkMatch[1]);
       const title = this.stripHtml(linkMatch[2]);
       const descMatch = content.match(
-        /class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/,
+        /class="[^"]*(?:snippet-description|description)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/,
       );
       const snippet = descMatch ? this.stripHtml(descMatch[1]) : "";
 
@@ -102,6 +106,15 @@ export class BraveHTMLProvider implements SearchProvider {
     }
 
     return results;
+  }
+
+  private decodeEntities(text: string): string {
+    return text
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
   }
 
   private stripHtml(html: string): string {
