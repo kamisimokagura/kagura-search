@@ -16,3 +16,8 @@ export { VerifyEngine } from "./verify/engine.js";
 export { SearchEngine } from "./search/engine.js";
 export type { SearchProvider, ContentExtractor } from "./search/provider.js";
 export { JinaExtractor } from "./search/providers/jina.js";
+export { SearchCache } from "./search/cache.js";
+export type { CacheConfig } from "./types.js";
+export { BraveHTMLProvider } from "./search/providers/brave-html.js";
+export { BraveAPIProvider } from "./search/providers/brave-api.js";
+export type { DiscoverOptions } from "./search/engine.js";
