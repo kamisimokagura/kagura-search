@@ -15,6 +15,59 @@ export class DuckDuckGoProvider implements SearchProvider {
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
+    const jsonResults = await this.searchJson(query, maxResults);
+    if (jsonResults.length > 0) return jsonResults;
+    return this.searchHtml(query, maxResults);
+  }
+
+  private async searchJson(
+    query: string,
+    maxResults: number,
+  ): Promise<RawSearchResult[]> {
+    try {
+      const encoded = encodeURIComponent(query).replace(/%20/g, "+");
+
+      // Step 1: fetch the main page to extract vqd token
+      const pageResponse = await fetch(`https://duckduckgo.com/?q=${encoded}`, {
+        headers: {
+          "User-Agent": "KaguraSearch/1.0",
+          Accept: "text/html",
+        },
+        signal: AbortSignal.timeout(this.timeout),
+      });
+
+      if (!pageResponse.ok) return [];
+
+      const pageHtml = await pageResponse.text();
+      const vqd = this.extractVqd(pageHtml);
+      if (!vqd) return [];
+
+      // Step 2: fetch d.js JSONP endpoint with vqd token
+      const djsUrl =
+        `https://links.duckduckgo.com/d.js?q=${encoded}` +
+        `&vqd=${encodeURIComponent(vqd)}&kl=wt-wt&l=wt-wt&p=&s=0&df=&ex=-1`;
+
+      const djsResponse = await fetch(djsUrl, {
+        headers: {
+          "User-Agent": "KaguraSearch/1.0",
+          Accept: "*/*",
+        },
+        signal: AbortSignal.timeout(this.timeout),
+      });
+
+      if (!djsResponse.ok) return [];
+
+      const jsonp = await djsResponse.text();
+      return this.parseJsonp(jsonp).slice(0, maxResults);
+    } catch {
+      return [];
+    }
+  }
+
+  private async searchHtml(
+    query: string,
+    maxResults: number,
+  ): Promise<RawSearchResult[]> {
     const encoded = encodeURIComponent(query).replace(/%20/g, "+");
     const url = `https://html.duckduckgo.com/html/?q=${encoded}`;
 
@@ -30,13 +83,46 @@ export class DuckDuckGoProvider implements SearchProvider {
       if (!response.ok) return [];
 
       const html = await response.text();
-      return this.parseResults(html).slice(0, maxResults);
+      return this.parseHtmlResults(html).slice(0, maxResults);
     } catch {
       return [];
     }
   }
 
-  private parseResults(html: string): RawSearchResult[] {
+  private extractVqd(html: string): string | null {
+    const match = html.match(/vqd=["']([^"']+)["']/);
+    return match ? match[1] : null;
+  }
+
+  private parseJsonp(jsonp: string): RawSearchResult[] {
+    try {
+      const match = jsonp.match(/DDG\.pageLayout\.load\('d',(\[[\s\S]*?\])\)/);
+      if (!match) return [];
+
+      const items = JSON.parse(match[1]) as Array<{
+        t?: string;
+        u?: string;
+        a?: string;
+      }>;
+
+      const results: RawSearchResult[] = [];
+      for (const item of items) {
+        if (item.t && item.u) {
+          results.push({
+            title: item.t,
+            url: item.u,
+            snippet: item.a ?? "",
+            engine: "duckduckgo",
+          });
+        }
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
+  private parseHtmlResults(html: string): RawSearchResult[] {
     const results: RawSearchResult[] = [];
 
     // Extract all link positions and snippet positions, then pair each link

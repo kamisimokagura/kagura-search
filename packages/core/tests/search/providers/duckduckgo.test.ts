@@ -39,6 +39,12 @@ describe("DuckDuckGoProvider", () => {
   });
 
   it("search parses HTML results", async () => {
+    // First call: GET duckduckgo.com for vqd — none found, triggers HTML fallback
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "<html>no vqd here</html>",
+    });
+    // Second call: HTML fallback
     mockFetch.mockResolvedValueOnce({
       ok: true,
       text: async () => SAMPLE_HTML,
@@ -55,14 +61,61 @@ describe("DuckDuckGoProvider", () => {
     expect(results).toEqual([]);
   });
 
-  it("uses html.duckduckgo.com endpoint", async () => {
+  it("uses html.duckduckgo.com endpoint as fallback", async () => {
+    // First call: GET duckduckgo.com for vqd — none found
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "<html>no vqd here</html>",
+    });
+    // Second call: HTML fallback
     mockFetch.mockResolvedValueOnce({
       ok: true,
       text: async () => "<html></html>",
     });
 
     await provider.search("test query");
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain("html.duckduckgo.com");
+    // The first call is to duckduckgo.com (vqd extraction)
+    const firstUrl = mockFetch.mock.calls[0][0] as string;
+    expect(firstUrl).toContain("duckduckgo.com");
+    // The second call (HTML fallback) uses html.duckduckgo.com
+    const secondUrl = mockFetch.mock.calls[1][0] as string;
+    expect(secondUrl).toContain("html.duckduckgo.com");
+  });
+
+  it("tries JSON API first and falls back to HTML", async () => {
+    // First call: GET duckduckgo.com for vqd token — no token found
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "<html>no vqd here</html>",
+    });
+    // Second call: HTML fallback
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => SAMPLE_HTML,
+    });
+
+    const results = await provider.search("test query");
+    expect(results.length).toBeGreaterThan(0);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses JSON API results when vqd token is found", async () => {
+    // First call: GET duckduckgo.com with vqd token
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => `<script>vqd="test-vqd-token-123"</script>`,
+    });
+    // Second call: d.js JSONP response
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () =>
+        `DDG.pageLayout.load('d',[{"t":"JSON Title","u":"https://json.example.com","a":"JSON snippet content"}]);`,
+    });
+
+    const results = await provider.search("json test");
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].title).toBe("JSON Title");
+    expect(results[0].url).toBe("https://json.example.com");
+    expect(results[0].snippet).toBe("JSON snippet content");
   });
 });
