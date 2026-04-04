@@ -106,4 +106,52 @@ describe("VerifyEngine", () => {
     expect(verified.results).toEqual([]);
     expect(verified.conflicts).toBe(0);
   });
+
+  it("gives engine diversity bonus when multiple engines find same result", () => {
+    const raw = [
+      makeResult(
+        "Same Topic",
+        "https://a.com",
+        "TypeScript is a programming language",
+        "google",
+      ),
+      makeResult(
+        "Same Topic B",
+        "https://b.com",
+        "TypeScript is a programming language",
+        "duckduckgo",
+      ),
+    ];
+
+    const verified = verifier.verify(raw, "TypeScript");
+    expect(verified.results[0].score).toBeGreaterThan(0.5);
+  });
+
+  it("gives snippet quality bonus for long snippets", () => {
+    const shortSnippet = [
+      makeResult("Short A", "https://a.com", "Short text", "g"),
+      makeResult("Short B", "https://b.com", "Short text here", "b"),
+    ];
+    const longSnippet = [
+      makeResult(
+        "Long A",
+        "https://c.com",
+        "A".repeat(150) + " detailed content about the topic",
+        "g",
+      ),
+      makeResult(
+        "Long B",
+        "https://d.com",
+        "B".repeat(150) + " detailed content about the topic",
+        "b",
+      ),
+    ];
+
+    const shortResult = verifier.verify(shortSnippet, "test");
+    const longResult = verifier.verify(longSnippet, "test");
+
+    expect(longResult.results[0].score).toBeGreaterThanOrEqual(
+      shortResult.results[0].score,
+    );
+  });
 });

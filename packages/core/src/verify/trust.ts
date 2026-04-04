@@ -83,3 +83,24 @@ export function detectNumberConflict(
   // Require at least one matched pair with any disagreement
   return matchedPairs >= 1 && conflictingPairs >= 1;
 }
+
+export function calculateQualityBonus(
+  group: Array<{ snippet: string; engine: string }>,
+): number {
+  let bonus = 0;
+
+  // Engine diversity bonus: different engines confirming same info
+  const uniqueEngines = new Set(group.map((r) => r.engine));
+  if (uniqueEngines.size >= 2) {
+    bonus += 0.1;
+  }
+
+  // Snippet quality bonus: longer snippets = more informative
+  const avgSnippetLength =
+    group.reduce((sum, r) => sum + r.snippet.length, 0) / group.length;
+  if (avgSnippetLength > 100) {
+    bonus += 0.05;
+  }
+
+  return bonus;
+}

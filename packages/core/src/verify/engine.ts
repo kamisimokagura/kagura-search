@@ -4,6 +4,7 @@ import {
   determineTrust,
   extractNumbers,
   detectNumberConflict,
+  calculateQualityBonus,
 } from "./trust.js";
 
 interface VerifyResult {
@@ -34,6 +35,11 @@ export class VerifyEngine {
         minSources,
       );
 
+      const qualityBonus = calculateQualityBonus(
+        group.map((r) => ({ snippet: r.snippet, engine: r.engine })),
+      );
+      const finalScore = Math.min(score + qualityBonus, 1.0);
+
       // Prefer a group member with a valid URL as the representative result
       const primary =
         group.find((r) => {
@@ -49,7 +55,7 @@ export class VerifyEngine {
         source: primary.url,
         content: primary.snippet,
         trust,
-        score,
+        score: finalScore,
         matchedSources: independentCount,
       });
     }
