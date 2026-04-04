@@ -1,6 +1,11 @@
 import type { SearchProvider } from "./provider.js";
 import type { RawSearchResult } from "../types.js";
 
+export interface DiscoverOptions {
+  graceMs?: number; // Grace period after first provider returns enough results (default 500)
+  timeoutMs?: number; // Hard timeout for entire discover call (default 5000)
+}
+
 export class SearchEngine {
   private providers: SearchProvider[];
   private _lastEnginesUsed: string[] = [];
@@ -13,23 +18,53 @@ export class SearchEngine {
     return [...this._lastEnginesUsed];
   }
 
-  async discover(query: string, maxResults = 10): Promise<RawSearchResult[]> {
+  async discover(
+    query: string,
+    maxResults = 10,
+    options?: DiscoverOptions,
+  ): Promise<RawSearchResult[]> {
     const available = this.providers.filter((p) => p.isAvailable());
     this._lastEnginesUsed = available.map((p) => p.name);
+    if (available.length === 0) return [];
 
-    const settled = await Promise.allSettled(
-      available.map((p) => p.search(query, maxResults)),
+    const graceMs = options?.graceMs ?? 500;
+    const timeoutMs = options?.timeoutMs ?? 5000;
+    const allResults: RawSearchResult[] = [];
+    let firstBatchDone = false;
+
+    // Wrap each provider to collect results as they arrive
+    const providerPromises = available.map((p) =>
+      p
+        .search(query, maxResults)
+        .then((results) => {
+          allResults.push(...results);
+          if (!firstBatchDone && allResults.length >= maxResults) {
+            firstBatchDone = true;
+          }
+          return results;
+        })
+        .catch(() => [] as RawSearchResult[]),
     );
 
-    const allResults: RawSearchResult[] = [];
-    for (const result of settled) {
-      if (result.status === "fulfilled") {
-        allResults.push(...result.value);
-      }
-    }
+    // Race: wait for all providers to finish OR timeout/grace period
+    await Promise.race([
+      Promise.allSettled(providerPromises),
+      new Promise<void>((resolve) => {
+        // Hard timeout
+        const hardTimer = setTimeout(resolve, timeoutMs);
+        // Poll to detect when grace period should start
+        const checkGrace = setInterval(() => {
+          if (firstBatchDone) {
+            clearInterval(checkGrace);
+            clearTimeout(hardTimer);
+            setTimeout(resolve, graceMs);
+          }
+        }, 50);
+        // Clean up interval on hard timeout
+        setTimeout(() => clearInterval(checkGrace), timeoutMs);
+      }),
+    ]);
 
-    // Don't truncate here — let verification see the full multi-engine result set.
-    // The caller (KaguraSearch) handles final maxResults slicing after verification.
     return this.deduplicate(allResults);
   }
 

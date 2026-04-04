@@ -138,4 +138,125 @@ describe("SearchEngine", () => {
 
     expect(results).toHaveLength(1);
   });
+
+  it("racing returns fast provider results without waiting for slow ones", async () => {
+    const fast: SearchProvider = {
+      name: "fast",
+      tier: 0,
+      isAvailable: () => true,
+      search: vi.fn().mockResolvedValue([
+        {
+          title: "Fast",
+          url: "https://fast.com",
+          snippet: "quick",
+          engine: "fast",
+        },
+        {
+          title: "Fast2",
+          url: "https://fast2.com",
+          snippet: "quick2",
+          engine: "fast",
+        },
+      ]),
+    };
+    const slow: SearchProvider = {
+      name: "slow",
+      tier: 1,
+      isAvailable: () => true,
+      search: vi
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () =>
+                  resolve([
+                    {
+                      title: "Slow",
+                      url: "https://slow.com",
+                      snippet: "delayed",
+                      engine: "slow",
+                    },
+                  ]),
+                10000,
+              ),
+            ),
+        ),
+    };
+
+    const engine = new SearchEngine([fast, slow]);
+    const results = await engine.discover("test", 2, {
+      graceMs: 100,
+      timeoutMs: 500,
+    });
+
+    expect(results.some((r) => r.title === "Fast")).toBe(true);
+  });
+
+  it("racing merges results from multiple fast providers", async () => {
+    const p1: SearchProvider = {
+      name: "p1",
+      tier: 0,
+      isAvailable: () => true,
+      search: vi
+        .fn()
+        .mockResolvedValue([
+          { title: "A", url: "https://a.com", snippet: "a", engine: "p1" },
+        ]),
+    };
+    const p2: SearchProvider = {
+      name: "p2",
+      tier: 0,
+      isAvailable: () => true,
+      search: vi
+        .fn()
+        .mockResolvedValue([
+          { title: "B", url: "https://b.com", snippet: "b", engine: "p2" },
+        ]),
+    };
+
+    const engine = new SearchEngine([p1, p2]);
+    const results = await engine.discover("test", 2, {
+      graceMs: 500,
+      timeoutMs: 5000,
+    });
+
+    expect(results).toHaveLength(2);
+  });
+
+  it("racing falls back gracefully when all providers are slow", async () => {
+    const slow: SearchProvider = {
+      name: "slow",
+      tier: 0,
+      isAvailable: () => true,
+      search: vi
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () =>
+                  resolve([
+                    {
+                      title: "Eventually",
+                      url: "https://eventually.com",
+                      snippet: "done",
+                      engine: "slow",
+                    },
+                  ]),
+                200,
+              ),
+            ),
+        ),
+    };
+
+    const engine = new SearchEngine([slow]);
+    const results = await engine.discover("test", 1, {
+      graceMs: 100,
+      timeoutMs: 5000,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Eventually");
+  });
 });
