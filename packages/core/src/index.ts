@@ -20,4 +20,7 @@ export { SearchCache } from "./search/cache.js";
 export type { CacheConfig } from "./types.js";
 export { BraveHTMLProvider } from "./search/providers/brave-html.js";
 export { BraveAPIProvider } from "./search/providers/brave-api.js";
+export { GoogleHTMLProvider } from "./search/providers/google.js";
+export { JinaSearchProvider } from "./search/providers/jina-search.js";
+export { RateLimitBreaker } from "./search/provider.js";
 export type { DiscoverOptions } from "./search/engine.js";

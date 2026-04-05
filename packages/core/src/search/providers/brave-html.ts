@@ -1,17 +1,19 @@
 import type { SearchProvider } from "../provider.js";
+import { RateLimitBreaker } from "../provider.js";
 import type { RawSearchResult } from "../../types.js";
 
 export class BraveHTMLProvider implements SearchProvider {
   readonly name = "brave";
   readonly tier = 0 as const;
   private timeout: number;
+  private breaker = new RateLimitBreaker();
 
   constructor(timeout?: number) {
     this.timeout = timeout ?? 8000;
   }
 
   isAvailable(): boolean {
-    return true;
+    return !this.breaker.isOpen;
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
@@ -29,8 +31,14 @@ export class BraveHTMLProvider implements SearchProvider {
         signal: AbortSignal.timeout(this.timeout),
       });
 
-      if (!response.ok) return [];
+      if (!response.ok) {
+        if (response.status === 429 || response.status === 403) {
+          this.breaker.trip();
+        }
+        return [];
+      }
 
+      this.breaker.reset();
       const html = await response.text();
       return this.parseResults(html).slice(0, maxResults);
     } catch {

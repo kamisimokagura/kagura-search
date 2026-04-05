@@ -1,17 +1,19 @@
 import type { SearchProvider } from "../provider.js";
+import { RateLimitBreaker } from "../provider.js";
 import type { RawSearchResult } from "../../types.js";
 
 export class DuckDuckGoProvider implements SearchProvider {
   readonly name = "duckduckgo";
   readonly tier = 0 as const;
   private timeout: number;
+  private breaker = new RateLimitBreaker();
 
   constructor(timeout?: number) {
     this.timeout = timeout ?? 8000;
   }
 
   isAvailable(): boolean {
-    return true;
+    return !this.breaker.isOpen;
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
@@ -80,8 +82,14 @@ export class DuckDuckGoProvider implements SearchProvider {
         signal: AbortSignal.timeout(this.timeout),
       });
 
-      if (!response.ok) return [];
+      if (!response.ok) {
+        if (response.status === 429 || response.status === 403) {
+          this.breaker.trip();
+        }
+        return [];
+      }
 
+      this.breaker.reset();
       const html = await response.text();
       return this.parseHtmlResults(html).slice(0, maxResults);
     } catch {

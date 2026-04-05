@@ -15,6 +15,8 @@ import { DuckDuckGoProvider } from "./search/providers/duckduckgo.js";
 import { SearchCache } from "./search/cache.js";
 import { BraveHTMLProvider } from "./search/providers/brave-html.js";
 import { BraveAPIProvider } from "./search/providers/brave-api.js";
+import { GoogleHTMLProvider } from "./search/providers/google.js";
+import { JinaSearchProvider } from "./search/providers/jina-search.js";
 
 export class KaguraSearch {
   private config: KaguraConfig;
@@ -96,8 +98,28 @@ export class KaguraSearch {
       providers.push(new BraveAPIProvider(braveApiCfg.apiKey, timeout));
     }
 
-    // No fallback: if all providers are explicitly disabled,
-    // return empty so searches return no results as expected
+    // Google HTML scraper — suppress when SearXNG env failed (privacy)
+    const googleCfg = cfg.google;
+    const googleExplicitlyEnabled = googleCfg?.enabled === true;
+    if (
+      googleCfg?.enabled !== false &&
+      (!searxngEnvFailed || googleExplicitlyEnabled)
+    ) {
+      providers.push(new GoogleHTMLProvider(timeout));
+    }
+
+    // Jina Search — tier 1 fallback, always available unless explicitly disabled
+    // Also suppressed when SearXNG env failed (privacy)
+    const jinaCfg = cfg.jina;
+    const jinaExplicitlyEnabled = jinaCfg?.enabled === true;
+    if (
+      jinaCfg?.enabled !== false &&
+      (!searxngEnvFailed || jinaExplicitlyEnabled)
+    ) {
+      providers.push(new JinaSearchProvider(timeout));
+    }
+
+    // If all providers are explicitly disabled, return empty
     return providers;
   }
 

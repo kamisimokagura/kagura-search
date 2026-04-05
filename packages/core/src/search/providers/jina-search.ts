@@ -2,36 +2,34 @@ import type { SearchProvider } from "../provider.js";
 import { RateLimitBreaker } from "../provider.js";
 import type { RawSearchResult } from "../../types.js";
 
-export class BraveAPIProvider implements SearchProvider {
-  // Use "brave" (not "brave-api") so HTML and API providers share the same
-  // engine identity for deduplication and verification scoring.
-  readonly name = "brave";
-  readonly tier = 0 as const;
-  private apiKey: string | undefined;
+/**
+ * Jina Search API provider (s.jina.ai).
+ * Tier 1 fallback — free, no API key needed, but slower than tier 0.
+ * Returns JSON results when Accept: application/json is set.
+ */
+export class JinaSearchProvider implements SearchProvider {
+  readonly name = "jina";
+  readonly tier = 1 as const;
   private timeout: number;
   private breaker = new RateLimitBreaker();
 
-  constructor(apiKey?: string, timeout?: number) {
-    this.apiKey = apiKey;
-    this.timeout = timeout ?? 8000;
+  constructor(timeout?: number) {
+    this.timeout = timeout ?? 10000;
   }
 
   isAvailable(): boolean {
-    return !!this.apiKey && !this.breaker.isOpen;
+    return !this.breaker.isOpen;
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
-    if (!this.apiKey) return [];
-
     const encoded = encodeURIComponent(query);
-    const count = Math.min(maxResults, 20);
-    const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${count}`;
+    const url = `https://s.jina.ai/${encoded}`;
 
     try {
       const response = await fetch(url, {
         headers: {
-          "X-Subscription-Token": this.apiKey,
           Accept: "application/json",
+          "X-Retain-Images": "none",
         },
         signal: AbortSignal.timeout(this.timeout),
       });
@@ -45,22 +43,22 @@ export class BraveAPIProvider implements SearchProvider {
 
       this.breaker.reset();
       const data = (await response.json()) as {
-        web?: {
-          results?: Array<{
-            title?: string;
-            url?: string;
-            description?: string;
-          }>;
-        };
+        data?: Array<{
+          title?: string;
+          url?: string;
+          description?: string;
+          content?: string;
+        }>;
       };
 
-      return (data.web?.results ?? [])
+      return (data.data ?? [])
         .filter((r) => r.url && r.title)
+        .slice(0, maxResults)
         .map((r) => ({
           title: r.title ?? "",
           url: r.url ?? "",
-          snippet: r.description ?? "",
-          engine: "brave",
+          snippet: r.description ?? r.content?.slice(0, 200) ?? "",
+          engine: "jina",
         }));
     } catch {
       return [];

@@ -1,10 +1,16 @@
 import type { SearchProvider } from "../provider.js";
+import { RateLimitBreaker } from "../provider.js";
 import type { RawSearchResult } from "../../types.js";
 
 const PUBLIC_INSTANCES = [
   "https://search.sapti.me",
   "https://searx.tiekoetter.com",
   "https://search.bus-hit.me",
+  "https://searx.be",
+  "https://search.ononoki.org",
+  "https://searx.zhenyapav.com",
+  "https://search.hbubli.cc",
+  "https://searx.work",
 ];
 
 export interface SearXNGConfig {
@@ -18,6 +24,7 @@ export class SearXNGProvider implements SearchProvider {
   readonly tier = 0 as const;
   private instances: string[];
   private timeout: number;
+  private breakers = new Map<string, RateLimitBreaker>();
 
   constructor(config?: string | SearXNGConfig, timeout?: number) {
     if (config === undefined || config === null) {
@@ -38,8 +45,18 @@ export class SearXNGProvider implements SearchProvider {
     }
   }
 
+  private getBreaker(instance: string): RateLimitBreaker {
+    let b = this.breakers.get(instance);
+    if (!b) {
+      b = new RateLimitBreaker();
+      this.breakers.set(instance, b);
+    }
+    return b;
+  }
+
   isAvailable(): boolean {
-    return true;
+    // Available if at least one instance is not rate-limited
+    return this.instances.some((i) => !this.getBreaker(i).isOpen);
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
@@ -53,10 +70,14 @@ export class SearXNGProvider implements SearchProvider {
     query: string,
     maxResults: number,
   ): Promise<RawSearchResult[]> {
+    // Filter out rate-limited instances
+    const available = this.instances.filter((i) => !this.getBreaker(i).isOpen);
+    if (available.length === 0) return [];
+
     // Race: resolve as soon as ANY instance returns non-empty results
     try {
       return await Promise.any(
-        this.instances.map((instance) =>
+        available.map((instance) =>
           this.searchInstance(instance, query, maxResults).then((results) => {
             if (results.length === 0) throw new Error("empty");
             return results;
@@ -83,8 +104,14 @@ export class SearXNGProvider implements SearchProvider {
         signal: AbortSignal.timeout(this.timeout),
       });
 
-      if (!response.ok) return [];
+      if (!response.ok) {
+        if (response.status === 429 || response.status === 403) {
+          this.getBreaker(baseUrl).trip();
+        }
+        return [];
+      }
 
+      this.getBreaker(baseUrl).reset();
       const data = await response.json();
       return (data.results ?? []).map(
         (r: {
