@@ -81,13 +81,9 @@ export class SearchEngine {
       };
     });
 
-    // Report only engines that actually contributed results
-    const contributingEngines = new Set(allResults.map((r) => r.engine));
-    this._lastEnginesUsed = available
-      .map((p) => p.name)
-      .filter((name) => contributingEngines.has(name));
-    // Deduplicate engine names
-    this._lastEnginesUsed = [...new Set(this._lastEnginesUsed)];
+    // Report all queried provider names (not result engine names, because
+    // SearXNG forwards upstream engine names like "google" in results)
+    this._lastEnginesUsed = [...new Set(available.map((p) => p.name))];
 
     return this.deduplicate(allResults);
   }

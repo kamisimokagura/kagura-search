@@ -115,15 +115,11 @@ export class KaguraSearch {
       providers.push(new GoogleHTMLProvider(timeout));
     }
 
-    // Jina Search — tier 1 fallback, only if not all disabled
-    // Also suppressed when SearXNG env failed (privacy)
+    // Jina Search — opt-in only (enabled: true required).
+    // Sends every query to s.jina.ai so it's a privacy-conscious choice.
     const jinaCfg = cfg.jina;
     const jinaExplicitlyEnabled = jinaCfg?.enabled === true;
-    if (
-      jinaCfg?.enabled !== false &&
-      (hasLegacyProvider || jinaExplicitlyEnabled) &&
-      (!searxngEnvFailed || jinaExplicitlyEnabled)
-    ) {
+    if (jinaExplicitlyEnabled && (!searxngEnvFailed || jinaExplicitlyEnabled)) {
       providers.push(new JinaSearchProvider(timeout));
     }
 
