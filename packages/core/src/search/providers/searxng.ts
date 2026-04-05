@@ -29,10 +29,10 @@ export class SearXNGProvider implements SearchProvider {
   constructor(config?: string | SearXNGConfig, timeout?: number) {
     if (config === undefined || config === null) {
       this.instances = [...PUBLIC_INSTANCES];
-      this.timeout = timeout ?? 8000;
+      this.timeout = timeout ?? 5000;
     } else if (typeof config === "string") {
       this.instances = [config];
-      this.timeout = timeout ?? 8000;
+      this.timeout = timeout ?? 5000;
     } else {
       if (config.instances && config.instances.length > 0) {
         this.instances = [...config.instances];
@@ -41,7 +41,7 @@ export class SearXNGProvider implements SearchProvider {
       } else {
         this.instances = [...PUBLIC_INSTANCES];
       }
-      this.timeout = config.timeout ?? timeout ?? 8000;
+      this.timeout = config.timeout ?? timeout ?? 5000;
     }
   }
 

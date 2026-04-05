@@ -13,7 +13,7 @@ describe("config", () => {
     const config = getDefaultConfig();
     expect(config.providers).toEqual({});
     expect(config.maxResults).toBe(10);
-    expect(config.timeout).toBe(10000);
+    expect(config.timeout).toBe(5000);
     expect(config.deep).toBe(false);
   });
 
@@ -38,7 +38,7 @@ describe("config", () => {
     };
     const config = loadConfig(userConfig);
     expect(config.maxResults).toBe(20);
-    expect(config.timeout).toBe(10000);
+    expect(config.timeout).toBe(5000);
     expect(config.providers.searxng?.baseUrl).toBe("http://localhost:8888");
   });
 

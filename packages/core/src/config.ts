@@ -11,7 +11,7 @@ export function getDefaultConfig(): Required<
     providers: {},
     deep: false,
     maxResults: 10,
-    timeout: 10000,
+    timeout: 5000,
   };
 }
 

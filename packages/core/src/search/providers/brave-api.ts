@@ -13,7 +13,7 @@ export class BraveAPIProvider implements SearchProvider {
 
   constructor(apiKey?: string, timeout?: number) {
     this.apiKey = apiKey;
-    this.timeout = timeout ?? 8000;
+    this.timeout = timeout ?? 5000;
   }
 
   isAvailable(): boolean {

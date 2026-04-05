@@ -9,7 +9,7 @@ export class DuckDuckGoProvider implements SearchProvider {
   private breaker = new RateLimitBreaker();
 
   constructor(timeout?: number) {
-    this.timeout = timeout ?? 8000;
+    this.timeout = timeout ?? 5000;
   }
 
   isAvailable(): boolean {
@@ -17,8 +17,12 @@ export class DuckDuckGoProvider implements SearchProvider {
   }
 
   async search(query: string, maxResults = 10): Promise<RawSearchResult[]> {
-    const jsonResults = await this.searchJson(query, maxResults);
-    if (jsonResults.length > 0) return jsonResults;
+    // site: queries have poor vqd extraction success on the JSON path,
+    // so skip the extra roundtrip and go straight to HTML scraping.
+    if (!query.includes("site:")) {
+      const jsonResults = await this.searchJson(query, maxResults);
+      if (jsonResults.length > 0) return jsonResults;
+    }
     return this.searchHtml(query, maxResults);
   }
 

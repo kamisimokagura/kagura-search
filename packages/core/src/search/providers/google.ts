@@ -9,7 +9,7 @@ export class GoogleHTMLProvider implements SearchProvider {
   private breaker = new RateLimitBreaker();
 
   constructor(timeout?: number) {
-    this.timeout = timeout ?? 8000;
+    this.timeout = timeout ?? 5000;
   }
 
   isAvailable(): boolean {
