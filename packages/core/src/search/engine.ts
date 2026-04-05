@@ -39,10 +39,12 @@ export class SearchEngine {
     // exclude a provider set `enabled: false` in config. This avoids
     // complex tier-phasing logic that creates edge cases around timeouts,
     // deep-mode corroboration, and fallback reliability.
+    const contributingProviders = new Set<string>();
     const providerPromises = available.map((p) =>
       p
         .search(query, maxResults)
         .then((results) => {
+          if (results.length > 0) contributingProviders.add(p.name);
           allResults.push(...results);
           checkThreshold?.();
           return results;
@@ -81,9 +83,9 @@ export class SearchEngine {
       };
     });
 
-    // Report all queried provider names (not result engine names, because
-    // SearXNG forwards upstream engine names like "google" in results)
-    this._lastEnginesUsed = [...new Set(available.map((p) => p.name))];
+    // Report provider names that returned results (using provider.name,
+    // not result.engine, because SearXNG forwards upstream engine names)
+    this._lastEnginesUsed = [...contributingProviders];
 
     return this.deduplicate(allResults);
   }
