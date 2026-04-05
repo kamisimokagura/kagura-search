@@ -2,7 +2,9 @@ import type { SearchProvider } from "../provider.js";
 import type { RawSearchResult } from "../../types.js";
 
 export class BraveAPIProvider implements SearchProvider {
-  readonly name = "brave-api";
+  // Use "brave" (not "brave-api") so HTML and API providers share the same
+  // engine identity for deduplication and verification scoring.
+  readonly name = "brave";
   readonly tier = 0 as const;
   private apiKey: string | undefined;
   private timeout: number;
@@ -50,7 +52,7 @@ export class BraveAPIProvider implements SearchProvider {
           title: r.title ?? "",
           url: r.url ?? "",
           snippet: r.description ?? "",
-          engine: "brave-api",
+          engine: "brave",
         }));
     } catch {
       return [];

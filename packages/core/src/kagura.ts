@@ -82,7 +82,10 @@ export class KaguraSearch {
       providers.push(new BraveHTMLProvider(timeout));
     }
 
-    // Brave API — also respect enabled:false AND suppress when SearXNG env failed
+    // Brave API — also respect enabled:false AND suppress when SearXNG env failed.
+    // Only `enabled: true` overrides fail-closed (not mere apiKey presence),
+    // because a user may have both SearXNG (private) and Brave API configured
+    // and expect ALL providers to stop when their private instance is unavailable.
     const braveApiCfg = cfg["brave-api"];
     const braveApiExplicitlyEnabled = braveApiCfg?.enabled === true;
     if (
@@ -132,11 +135,15 @@ export class KaguraSearch {
       ? `${sanitized} site:${platformDomain}`
       : sanitized;
 
+    // Normalize platform for cache key: "web" produces no site: prefix just like
+    // undefined, so they should share the same cache slot.
+    const cacheplatform = platformDomain ? (platform ?? "") : "";
+
     const cached = this.cache.get(
       searchQuery,
       maxResults,
       isDeep,
-      platform ?? "",
+      cacheplatform,
     );
     if (cached) {
       return {
@@ -168,7 +175,7 @@ export class KaguraSearch {
       },
     };
 
-    this.cache.set(searchQuery, maxResults, response, isDeep, platform ?? "");
+    this.cache.set(searchQuery, maxResults, response, isDeep, cacheplatform);
 
     return response;
   }

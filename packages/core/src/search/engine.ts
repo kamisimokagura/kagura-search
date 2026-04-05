@@ -24,7 +24,7 @@ export class SearchEngine {
     options?: DiscoverOptions,
   ): Promise<RawSearchResult[]> {
     const available = this.providers.filter((p) => p.isAvailable());
-    this._lastEnginesUsed = available.map((p) => p.name);
+    this._lastEnginesUsed = [...new Set(available.map((p) => p.name))];
     if (available.length === 0) return [];
 
     const graceMs = options?.graceMs ?? 500;

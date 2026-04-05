@@ -21,7 +21,8 @@ describe("BraveAPIProvider", () => {
 
   it("has correct metadata", () => {
     const provider = new BraveAPIProvider("key");
-    expect(provider.name).toBe("brave-api");
+    // Shares "brave" identity with BraveHTMLProvider for dedup/scoring
+    expect(provider.name).toBe("brave");
     expect(provider.tier).toBe(0);
   });
 
@@ -47,7 +48,7 @@ describe("BraveAPIProvider", () => {
     expect(results[0].title).toBe("API Result");
     expect(results[0].url).toBe("https://api.example.com");
     expect(results[0].snippet).toBe("From Brave API");
-    expect(results[0].engine).toBe("brave-api");
+    expect(results[0].engine).toBe("brave");
   });
 
   it("sends correct headers with API key", async () => {
