@@ -29,63 +29,17 @@ export class SearchEngine {
       return [];
     }
 
-    const globalTimeout = options?.timeoutMs ?? 5000;
-    const globalStart = Date.now();
-
-    // Split by tier: tier-0 runs immediately, tier-1+ only if tier-0 is insufficient
-    const tier0 = available.filter((p) => p.tier === 0);
-    const tierFallback = available.filter((p) => p.tier > 0);
-
-    // Phase 1: race tier-0 providers
-    const tier0Results = await this.raceProviders(tier0, query, maxResults, {
-      ...options,
-      timeoutMs: globalTimeout,
-    });
-
-    // Phase 2: if tier-0 returned zero results and we have fallback providers,
-    // try them with the remaining time budget. We check for zero (not < maxResults)
-    // because tier-0 may return partial results that verification/deep-mode still
-    // needs fallback corroboration for — but launching fallback for every partial
-    // result would negate the privacy benefit. Zero results is the unambiguous signal.
-    const elapsed = Date.now() - globalStart;
-    const remainingMs = globalTimeout - elapsed;
-    if (
-      this.deduplicateCount(tier0Results) === 0 &&
-      tierFallback.length > 0 &&
-      remainingMs > 500
-    ) {
-      const fallbackResults = await this.raceProviders(
-        tierFallback,
-        query,
-        maxResults,
-        { ...options, timeoutMs: remainingMs },
-      );
-      tier0Results.push(...fallbackResults);
-      this._lastEnginesUsed = [
-        ...new Set([...tier0, ...tierFallback].map((p) => p.name)),
-      ];
-    } else {
-      this._lastEnginesUsed = [...new Set(tier0.map((p) => p.name))];
-    }
-
-    return this.deduplicate(tier0Results);
-  }
-
-  private async raceProviders(
-    providers: SearchProvider[],
-    query: string,
-    maxResults: number,
-    options?: DiscoverOptions,
-  ): Promise<RawSearchResult[]> {
-    if (providers.length === 0) return [];
-
     const graceMs = options?.graceMs ?? 150;
     const timeoutMs = options?.timeoutMs ?? 5000;
     const allResults: RawSearchResult[] = [];
     const startTime = Date.now();
     let checkThreshold: (() => void) | undefined;
 
-    const providerPromises = providers.map((p) =>
+    // All providers (all tiers) race in parallel. Users who want to
+    // exclude a provider set `enabled: false` in config. This avoids
+    // complex tier-phasing logic that creates edge cases around timeouts,
+    // deep-mode corroboration, and fallback reliability.
+    const providerPromises = available.map((p) =>
       p
         .search(query, maxResults)
         .then((results) => {
@@ -127,7 +81,15 @@ export class SearchEngine {
       };
     });
 
-    return allResults;
+    // Report only engines that actually contributed results
+    const contributingEngines = new Set(allResults.map((r) => r.engine));
+    this._lastEnginesUsed = available
+      .map((p) => p.name)
+      .filter((name) => contributingEngines.has(name));
+    // Deduplicate engine names
+    this._lastEnginesUsed = [...new Set(this._lastEnginesUsed)];
+
+    return this.deduplicate(allResults);
   }
 
   private normalizeUrl(url: string): string {
