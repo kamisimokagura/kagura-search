@@ -1,24 +1,21 @@
 # Kagura Search
 
-> Truth-illuminating open-source search engine with multi-source verification
+> Truth-illuminating search engine with multi-source verification
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![Tests](https://img.shields.io/badge/tests-167%20passed-brightgreen.svg)](#development)
 
-Kagura Search is an open-source search tool that **never lies**. It searches across multiple engines, cross-checks sources for contradictions, and labels every result with a trust level. Works with 90+ AI tools via MCP protocol -- zero API keys required.
+Kagura Search queries multiple search engines in parallel, cross-checks results for contradictions, and labels every result with a trust level. It works as a **CLI** and as an **MCP server** for 90+ AI tools -- no API keys required to start.
 
-## Features
+## Why Kagura?
 
-- **4-Layer Security Pipeline**: InputGuard (PI detection) -> SearchEngine (multi-source) -> VerifyEngine (cross-check) -> OutputShield (output protection)
-- **Trust Scoring**: Every result labeled as `verified`, `unverified`, or `conflicted`
-- **Zero Config**: Works out of the box with SearXNG + DuckDuckGo (no API keys)
-- **MCP Server**: 5 tools for any AI assistant (Claude Code, Cursor, VS Code, Codex, Gemini CLI)
-- **CLI**: Beautiful terminal output with trust indicators
-- **Platform Search**: Optimized strategies for Twitter/X, Reddit, YouTube, Instagram, TikTok, GitHub
-- **Prompt Injection Defense**: Dual-layer PI detection on both input and output
-- **Content Extraction**: Clean markdown via Jina Reader
-- **Docker Ready**: Bundled SearXNG instance for self-hosted deployments
+Most search tools return a flat list from a single engine. Kagura does three things differently:
+
+1. **Multi-provider racing** -- SearXNG, DuckDuckGo, Brave, and Google run in parallel. The fastest results win; slow providers don't block you.
+2. **Trust verification** -- Results from 2+ independent sources are marked `verified`. Conflicting numbers are flagged as `conflicted`. Single-source results stay `unverified`.
+3. **Security pipeline** -- Prompt injection detection on input AND output. SSRF protection. Zero-width character stripping.
 
 ## Quick Start
 
@@ -30,8 +27,6 @@ npx @kagura/search-tool "TypeScript best practices"
 
 ### MCP Server (for AI tools)
 
-Add to your AI tool's MCP config:
-
 ```json
 {
   "mcpServers": {
@@ -43,55 +38,46 @@ Add to your AI tool's MCP config:
 }
 ```
 
-### Docker (self-hosted with SearXNG)
+Works with Claude Code, Cursor, VS Code Copilot, Codex CLI, Gemini CLI, and any MCP-compatible tool.
+
+```bash
+# Claude Code shortcut
+claude mcp add kagura -- npx @kagura/mcp
+```
+
+### Docker (self-hosted SearXNG)
 
 ```bash
 cd docker && docker compose up -d
 ```
 
+This gives you a private SearXNG instance at `localhost:8888` -- no queries leak to public engines.
+
 ## Architecture
 
 ```
-+---------------------------------------------+
-|                User Query                    |
-+---------------------+-----------------------+
-                      |
-+---------------------v-----------------------+
-|  Layer 1: InputGuard                        |
-|  - Prompt injection detection (5 patterns)  |
-|  - Malicious intent blocking                |
-|  - HTML/script sanitization                 |
-+---------------------+-----------------------+
-                      |
-+---------------------v-----------------------+
-|  Layer 2: SearchEngine                      |
-|  - Parallel multi-engine queries            |
-|  - Parallel multi-provider querying          |
-|  - URL deduplication                        |
-|  +----------+ +-----------+ +------------+  |
-|  | SearXNG  | |DuckDuckGo | | Jina Reader|  |
-|  | (Tier 0) | | (Tier 0)  | | (Extract)  |  |
-|  +----------+ +-----------+ +------------+  |
-+---------------------+-----------------------+
-                      |
-+---------------------v-----------------------+
-|  Layer 3: VerifyEngine                      |
-|  - Cross-source similarity grouping         |
-|  - Number conflict detection                |
-|  - Trust level assignment                   |
-+---------------------+-----------------------+
-                      |
-+---------------------v-----------------------+
-|  Layer 4: OutputShield                      |
-|  - Source URL validation                    |
-|  - PI stripping from results                |
-|  - Zero-width character removal             |
-+---------------------+-----------------------+
-                      |
-+---------------------v-----------------------+
-|           Verified Results                   |
-|  [verified] [unverified] [conflicted]       |
-+---------------------------------------------+
+User Query
+    |
+    v
+[InputGuard] -- Prompt injection detection, malicious intent blocking
+    |
+    v
+[SearchEngine] -- Parallel racing across all providers
+    |  +-- SearXNG Pool (8 public instances, racing)
+    |  +-- DuckDuckGo (JSON API + HTML fallback)
+    |  +-- Brave HTML (scraper)
+    |  +-- Google HTML (scraper)
+    |  +-- Brave API (optional, needs key)
+    |  +-- Jina Search (opt-in)
+    |
+    v
+[VerifyEngine] -- Cross-source grouping, conflict detection, trust scoring
+    |
+    v
+[OutputShield] -- PI stripping, URL validation, zero-width removal
+    |
+    v
+Verified Results: [verified] [unverified] [conflicted]
 ```
 
 ## CLI Usage
@@ -102,8 +88,9 @@ kagura "TypeScript best practices"
 
 # Platform-specific search
 kagura "Claude Code tips" -p twitter
+kagura "machine learning papers" -p reddit
 
-# Deep verification mode
+# Deep verification mode (only verified/conflicted results)
 kagura "Tokyo population 2026" -d
 
 # JSON output (for scripting)
@@ -115,47 +102,38 @@ kagura "machine learning" -n 5
 
 ## MCP Tools
 
-| Tool              | Description                       |
-| ----------------- | --------------------------------- |
-| `kagura_search`   | Web search with trust scoring     |
-| `kagura_discover` | URL discovery (titles + snippets) |
-| `kagura_extract`  | Markdown content extraction       |
-| `kagura_verify`   | Claim cross-verification          |
-| `kagura_platform` | Platform-optimized search         |
+| Tool              | Description                               |
+| ----------------- | ----------------------------------------- |
+| `kagura_search`   | Web search with trust scoring             |
+| `kagura_discover` | URL discovery (titles + snippets)         |
+| `kagura_extract`  | Markdown content extraction via Jina      |
+| `kagura_verify`   | Cross-verify a specific claim             |
+| `kagura_platform` | Platform-optimized search (Twitter, etc.) |
 
-### Setup for Popular AI Tools
+## Providers
 
-**Claude Code:**
+Kagura ships with 6 search providers. All run in parallel (racing); the fastest non-empty response wins.
 
-```bash
-claude mcp add kagura -- npx @kagura/mcp
-```
+| Provider    | API Key | How it works                              | Default |
+| ----------- | ------- | ----------------------------------------- | ------- |
+| SearXNG     | No      | 8 public instances racing, JSON API       | Enabled |
+| DuckDuckGo  | No      | JSON API (general) + HTML scraper (site:) | Enabled |
+| Brave HTML  | No      | HTML scraper                              | Enabled |
+| Google HTML | No      | HTML scraper                              | Enabled |
+| Brave API   | Yes     | Official API, most reliable               | Opt-in  |
+| Jina Search | No      | s.jina.ai, sends queries externally       | Opt-in  |
 
-**Cursor / VS Code:**
+### Reliability Note
 
-```json
-{
-  "mcpServers": {
-    "kagura": {
-      "command": "npx",
-      "args": ["@kagura/mcp"]
-    }
-  }
-}
-```
+Public scrapers (SearXNG, Brave HTML, Google HTML) are subject to rate limiting and availability changes by the upstream services. This is inherent to any tool that scrapes public search engines -- not specific to Kagura.
 
-**Codex CLI:**
+**For stable, production use:**
 
-```json
-{
-  "mcpServers": {
-    "kagura": {
-      "command": "npx",
-      "args": ["@kagura/mcp"]
-    }
-  }
-}
-```
+- Run your own SearXNG instance (see [Docker setup](#docker-self-hosted-searxng))
+- Add a [Brave Search API key](https://brave.com/search/api/) (free tier available)
+- Both options eliminate dependence on public instance availability
+
+Every provider includes a **RateLimitBreaker** (circuit breaker with exponential backoff: 30s -> 60s -> 120s -> max 300s) so a tripped provider recovers automatically once the upstream service is available again.
 
 ## Configuration
 
@@ -166,94 +144,89 @@ Create `~/.kagura/config.json`:
   "providers": {
     "searxng": {
       "baseUrl": "http://localhost:8888"
+    },
+    "brave-api": {
+      "apiKey": "env:BRAVE_API_KEY",
+      "enabled": true
     }
   },
   "maxResults": 10,
-  "timeout": 10000,
-  "deep": false
+  "timeout": 5000
 }
 ```
 
-### Privacy Note
+### Privacy Mode
 
-By default, Kagura Search queries **all enabled providers in parallel** (SearXNG + DuckDuckGo). If you run a private SearXNG instance and want to prevent queries from being sent to public engines, explicitly disable DuckDuckGo:
+If you run a private SearXNG instance, disable public providers to prevent query leakage:
 
 ```json
 {
   "providers": {
     "searxng": { "baseUrl": "http://my-private-searxng:8888" },
-    "duckduckgo": { "enabled": false }
+    "duckduckgo": { "enabled": false },
+    "brave": { "enabled": false },
+    "google": { "enabled": false }
   }
 }
 ```
 
-If you use `env:` references for provider URLs and the environment variable is missing at runtime, the provider is automatically disabled and DuckDuckGo is also suppressed to prevent silent query leakage.
-
-### Provider Tiers
-
-| Tier | Provider         | API Key Required | Status    |
-| ---- | ---------------- | ---------------- | --------- |
-| 0    | SearXNG          | No               | Available |
-| 0    | DuckDuckGo       | No               | Available |
-| 0    | Jina Reader      | No               | Available |
-| 1    | YouTube Data API | Free key         | Planned   |
-| 1    | GitHub Token     | Free             | Planned   |
-| 2    | Firecrawl        | Paid             | Planned   |
-| 2    | Brave Search     | Paid             | Planned   |
+**Fail-closed behavior:** If you configure `"baseUrl": "env:SEARXNG_URL"` and the environment variable is missing, ALL public providers are automatically suppressed. No silent fallback to public engines.
 
 ## Trust Levels
 
-- **verified**: 2+ independent sources agree on the same information
-- **unverified**: Single source only -- verify independently before trusting
-- **conflicted**: Sources disagree (e.g., different numbers for the same claim)
+| Level        | Meaning                                      |
+| ------------ | -------------------------------------------- |
+| `verified`   | 2+ independent sources agree                 |
+| `unverified` | Single source only -- verify before trusting |
+| `conflicted` | Sources disagree (e.g., different numbers)   |
 
 ## Security
 
-Kagura Search implements defense-in-depth:
+4-layer defense-in-depth:
 
-1. **Input Validation**: Blocks prompt injection, role override, and system prompt extraction attempts
-2. **Malicious Intent Detection**: Blocks stalking, hacking, and other harmful queries
-3. **Output Sanitization**: Strips PI patterns and zero-width characters from search results
-4. **Source Verification**: Every result must have a valid source URL
+1. **InputGuard** -- Blocks prompt injection (5 patterns), role override, system prompt extraction
+2. **Malicious intent detection** -- Blocks stalking, hacking, and harmful queries
+3. **OutputShield** -- Strips PI patterns and zero-width characters from results
+4. **Source validation** -- Every result must have a valid, non-internal URL
 
 ## Development
 
 ```bash
-# Install
+# Install dependencies
 npm install
 
 # Build all packages
 npm run build
 
-# Test all packages
+# Run all tests (167 tests)
 npm run test
 
 # Dev mode (watch)
 npm run dev
 ```
 
-## Project Structure
+### Project Structure
 
 ```
 kagura-search/
-├── packages/
-│   ├── core/          # Search engine, security, verification
-│   ├── cli/           # Command-line interface
-│   └── mcp/           # MCP server for AI tools
-├── docker/            # Docker + SearXNG setup
-├── turbo.json         # Turborepo config
-└── package.json       # Workspace root
++-- packages/
+|   +-- core/     # Search engine, providers, security, verification
+|   +-- cli/      # Command-line interface
+|   +-- mcp/      # MCP server (5 tools)
++-- docker/       # Docker Compose + SearXNG config
++-- turbo.json    # Turborepo config
 ```
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch
 3. Write tests for new functionality
-4. Submit a pull request
+4. Run `npm test` (all 167 tests must pass)
+5. Submit a pull request
 
 ## License
 
-[MIT](LICENSE) - Created by the Kagura Search Contributors
+[MIT](LICENSE)

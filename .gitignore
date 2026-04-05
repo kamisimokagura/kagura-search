@@ -5,3 +5,6 @@ dist/
 .env
 .env.local
 coverage/
+.tmp-home/
+comparison/
+docs/
