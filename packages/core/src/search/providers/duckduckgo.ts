@@ -63,14 +63,21 @@ export class DuckDuckGoProvider implements SearchProvider {
 
       const djsResponse = await fetch(djsUrl, {
         headers: {
-          "User-Agent": "KaguraSearch/1.0",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
           Accept: "*/*",
         },
         signal: AbortSignal.timeout(this.timeout),
       });
 
-      if (!djsResponse.ok) return [];
+      if (!djsResponse.ok) {
+        if (djsResponse.status === 429 || djsResponse.status === 403) {
+          this.breaker.trip();
+        }
+        return [];
+      }
 
+      this.breaker.reset();
       const jsonp = await djsResponse.text();
       return this.parseJsonp(jsonp).slice(0, maxResults);
     } catch {

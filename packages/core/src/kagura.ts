@@ -98,22 +98,30 @@ export class KaguraSearch {
       providers.push(new BraveAPIProvider(braveApiCfg.apiKey, timeout));
     }
 
+    // Google and Jina are new providers. To avoid surprising users who
+    // disabled all legacy providers (expecting zero outbound requests),
+    // only add them when at least one legacy provider is active OR the user
+    // explicitly opted in via `enabled: true`.
+    const hasLegacyProvider = providers.length > 0;
+
     // Google HTML scraper — suppress when SearXNG env failed (privacy)
     const googleCfg = cfg.google;
     const googleExplicitlyEnabled = googleCfg?.enabled === true;
     if (
       googleCfg?.enabled !== false &&
+      (hasLegacyProvider || googleExplicitlyEnabled) &&
       (!searxngEnvFailed || googleExplicitlyEnabled)
     ) {
       providers.push(new GoogleHTMLProvider(timeout));
     }
 
-    // Jina Search — tier 1 fallback, always available unless explicitly disabled
+    // Jina Search — tier 1 fallback, only if not all disabled
     // Also suppressed when SearXNG env failed (privacy)
     const jinaCfg = cfg.jina;
     const jinaExplicitlyEnabled = jinaCfg?.enabled === true;
     if (
       jinaCfg?.enabled !== false &&
+      (hasLegacyProvider || jinaExplicitlyEnabled) &&
       (!searxngEnvFailed || jinaExplicitlyEnabled)
     ) {
       providers.push(new JinaSearchProvider(timeout));

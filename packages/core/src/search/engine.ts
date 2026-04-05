@@ -24,8 +24,49 @@ export class SearchEngine {
     options?: DiscoverOptions,
   ): Promise<RawSearchResult[]> {
     const available = this.providers.filter((p) => p.isAvailable());
-    this._lastEnginesUsed = [...new Set(available.map((p) => p.name))];
     if (available.length === 0) return [];
+
+    // Split by tier: tier-0 runs immediately, tier-1+ only if tier-0 is insufficient
+    const tier0 = available.filter((p) => p.tier === 0);
+    const tierFallback = available.filter((p) => p.tier > 0);
+
+    // Phase 1: race tier-0 providers
+    const tier0Results = await this.raceProviders(
+      tier0,
+      query,
+      maxResults,
+      options,
+    );
+
+    // Phase 2: if tier-0 didn't return enough, also try fallback providers
+    if (
+      this.deduplicateCount(tier0Results) < maxResults &&
+      tierFallback.length > 0
+    ) {
+      const fallbackResults = await this.raceProviders(
+        tierFallback,
+        query,
+        maxResults,
+        options,
+      );
+      tier0Results.push(...fallbackResults);
+      this._lastEnginesUsed = [
+        ...new Set([...tier0, ...tierFallback].map((p) => p.name)),
+      ];
+    } else {
+      this._lastEnginesUsed = [...new Set(tier0.map((p) => p.name))];
+    }
+
+    return this.deduplicate(tier0Results);
+  }
+
+  private async raceProviders(
+    providers: SearchProvider[],
+    query: string,
+    maxResults: number,
+    options?: DiscoverOptions,
+  ): Promise<RawSearchResult[]> {
+    if (providers.length === 0) return [];
 
     const graceMs = options?.graceMs ?? 150;
     const timeoutMs = options?.timeoutMs ?? 5000;
@@ -33,12 +74,11 @@ export class SearchEngine {
     const startTime = Date.now();
     let checkThreshold: (() => void) | undefined;
 
-    const providerPromises = available.map((p) =>
+    const providerPromises = providers.map((p) =>
       p
         .search(query, maxResults)
         .then((results) => {
           allResults.push(...results);
-          // Notify the threshold checker immediately on each provider result
           checkThreshold?.();
           return results;
         })
@@ -63,7 +103,6 @@ export class SearchEngine {
       const hard = setTimeout(finish, timeoutMs);
       allDone.then(finish);
 
-      // Event-driven threshold check — called each time a provider delivers results
       checkThreshold = () => {
         if (settled || graceTimer) return;
         if (this.deduplicateCount(allResults) >= maxResults) {
@@ -77,7 +116,7 @@ export class SearchEngine {
       };
     });
 
-    return this.deduplicate(allResults);
+    return allResults;
   }
 
   private normalizeUrl(url: string): string {
