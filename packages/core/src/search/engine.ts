@@ -24,30 +24,41 @@ export class SearchEngine {
     options?: DiscoverOptions,
   ): Promise<RawSearchResult[]> {
     const available = this.providers.filter((p) => p.isAvailable());
-    if (available.length === 0) return [];
+    if (available.length === 0) {
+      this._lastEnginesUsed = [];
+      return [];
+    }
+
+    const globalTimeout = options?.timeoutMs ?? 5000;
+    const globalStart = Date.now();
 
     // Split by tier: tier-0 runs immediately, tier-1+ only if tier-0 is insufficient
     const tier0 = available.filter((p) => p.tier === 0);
     const tierFallback = available.filter((p) => p.tier > 0);
 
     // Phase 1: race tier-0 providers
-    const tier0Results = await this.raceProviders(
-      tier0,
-      query,
-      maxResults,
-      options,
-    );
+    const tier0Results = await this.raceProviders(tier0, query, maxResults, {
+      ...options,
+      timeoutMs: globalTimeout,
+    });
 
-    // Phase 2: if tier-0 didn't return enough, also try fallback providers
+    // Phase 2: if tier-0 returned zero results and we have fallback providers,
+    // try them with the remaining time budget. We check for zero (not < maxResults)
+    // because tier-0 may return partial results that verification/deep-mode still
+    // needs fallback corroboration for — but launching fallback for every partial
+    // result would negate the privacy benefit. Zero results is the unambiguous signal.
+    const elapsed = Date.now() - globalStart;
+    const remainingMs = globalTimeout - elapsed;
     if (
-      this.deduplicateCount(tier0Results) < maxResults &&
-      tierFallback.length > 0
+      this.deduplicateCount(tier0Results) === 0 &&
+      tierFallback.length > 0 &&
+      remainingMs > 500
     ) {
       const fallbackResults = await this.raceProviders(
         tierFallback,
         query,
         maxResults,
-        options,
+        { ...options, timeoutMs: remainingMs },
       );
       tier0Results.push(...fallbackResults);
       this._lastEnginesUsed = [
