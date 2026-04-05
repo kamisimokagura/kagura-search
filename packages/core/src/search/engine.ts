@@ -2,7 +2,7 @@ import type { SearchProvider } from "./provider.js";
 import type { RawSearchResult } from "../types.js";
 
 export interface DiscoverOptions {
-  graceMs?: number; // Grace period after first provider returns enough results (default 500)
+  graceMs?: number; // Grace period after first provider returns enough results (default 150)
   timeoutMs?: number; // Hard timeout for entire discover call (default 5000)
 }
 
@@ -27,16 +27,19 @@ export class SearchEngine {
     this._lastEnginesUsed = [...new Set(available.map((p) => p.name))];
     if (available.length === 0) return [];
 
-    const graceMs = options?.graceMs ?? 500;
+    const graceMs = options?.graceMs ?? 150;
     const timeoutMs = options?.timeoutMs ?? 5000;
     const allResults: RawSearchResult[] = [];
     const startTime = Date.now();
+    let checkThreshold: (() => void) | undefined;
 
     const providerPromises = available.map((p) =>
       p
         .search(query, maxResults)
         .then((results) => {
           allResults.push(...results);
+          // Notify the threshold checker immediately on each provider result
+          checkThreshold?.();
           return results;
         })
         .catch(() => [] as RawSearchResult[]),
@@ -46,31 +49,32 @@ export class SearchEngine {
 
     await new Promise<void>((resolve) => {
       let settled = false;
+      let graceTimer: ReturnType<typeof setTimeout> | undefined;
+
       const finish = () => {
         if (!settled) {
           settled = true;
-          clearInterval(poll);
+          if (graceTimer) clearTimeout(graceTimer);
           clearTimeout(hard);
           resolve();
         }
       };
 
       const hard = setTimeout(finish, timeoutMs);
-
       allDone.then(finish);
 
-      const poll = setInterval(() => {
+      // Event-driven threshold check — called each time a provider delivers results
+      checkThreshold = () => {
+        if (settled || graceTimer) return;
         if (this.deduplicateCount(allResults) >= maxResults) {
-          clearInterval(poll);
-          // Grace period, but never exceed hard timeout
           const elapsed = Date.now() - startTime;
           const effectiveGrace = Math.min(
             graceMs,
             Math.max(timeoutMs - elapsed, 0),
           );
-          setTimeout(finish, effectiveGrace);
+          graceTimer = setTimeout(finish, effectiveGrace);
         }
-      }, 50);
+      };
     });
 
     return this.deduplicate(allResults);

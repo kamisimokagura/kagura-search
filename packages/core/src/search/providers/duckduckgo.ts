@@ -30,15 +30,27 @@ export class DuckDuckGoProvider implements SearchProvider {
       const encoded = encodeURIComponent(query).replace(/%20/g, "+");
 
       // Step 1: fetch the main page to extract vqd token
-      const pageResponse = await fetch(`https://duckduckgo.com/?q=${encoded}`, {
-        headers: {
-          "User-Agent": "KaguraSearch/1.0",
-          Accept: "text/html",
+      // Use a realistic User-Agent and force English locale to avoid
+      // localized error pages (e.g. Chinese block pages)
+      const pageResponse = await fetch(
+        `https://duckduckgo.com/?q=${encoded}&kl=wt-wt`,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            Accept: "text/html",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
+          signal: AbortSignal.timeout(this.timeout),
         },
-        signal: AbortSignal.timeout(this.timeout),
-      });
+      );
 
-      if (!pageResponse.ok) return [];
+      if (!pageResponse.ok) {
+        if (pageResponse.status === 429 || pageResponse.status === 403) {
+          this.breaker.trip();
+        }
+        return [];
+      }
 
       const pageHtml = await pageResponse.text();
       const vqd = this.extractVqd(pageHtml);
@@ -76,8 +88,10 @@ export class DuckDuckGoProvider implements SearchProvider {
     try {
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "KaguraSearch/1.0",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
           Accept: "text/html",
+          "Accept-Language": "en-US,en;q=0.9",
         },
         signal: AbortSignal.timeout(this.timeout),
       });
@@ -98,8 +112,18 @@ export class DuckDuckGoProvider implements SearchProvider {
   }
 
   private extractVqd(html: string): string | null {
-    const match = html.match(/vqd=["']([^"']+)["']/);
-    return match ? match[1] : null;
+    // Try multiple patterns — DDG uses different formats across page versions
+    const patterns = [
+      /vqd=["']([^"']+)["']/,
+      /vqd=([\d]+-[\d]+(?:-[\d]+)*)/,
+      /"vqd":"([^"]+)"/,
+      /vqd%3D([^&"']+)/,
+    ];
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
   }
 
   private parseJsonp(jsonp: string): RawSearchResult[] {
