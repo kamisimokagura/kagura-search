@@ -232,12 +232,12 @@ Contributions welcome! Please:
 
 ### v0.1.1 (2026-04-09)
 
-- **Query Relaxation**: 全プロバイダーが0件を返した時、クエリを自動簡略化してリトライ。短い固有名詞（ハイフン付き等）で結果が返らない問題を修正
-  - 4段階フォールバック: site:除去 → 引用語句抽出 → フィラーワード除去 → 先頭3語に短縮
+- **Query Relaxation**: Automatically simplify and retry queries when all providers return 0 results. Fixes short proper-noun queries (e.g. hyphenated names) returning empty results.
+  - 4-stage fallback: strip `site:` prefix → extract quoted terms → remove filler words → take first 3 words
 
 ### v0.1.0 (2026-04-06)
 
-- 初回リリース
+- Initial release
 - Multi-provider parallel racing (SearXNG, DuckDuckGo, Brave, Google)
 - Trust verification (verified / unverified / conflicted)
 - 4-layer security pipeline
