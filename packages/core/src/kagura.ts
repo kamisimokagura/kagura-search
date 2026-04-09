@@ -178,7 +178,21 @@ export class KaguraSearch {
       };
     }
 
-    const raw = await this.searchEngine.discover(searchQuery, discoverCount);
+    let raw = await this.searchEngine.discover(searchQuery, discoverCount);
+
+    // Query relaxation: if 0 results, retry with simplified query.
+    // Handles short proper-noun queries like "Oh-my-mermaid architecture documentation AI"
+    // where SearXNG instances return empty and other providers also miss.
+    if (raw.length === 0) {
+      const relaxed = this.relaxQuery(sanitized);
+      if (relaxed && relaxed !== sanitized) {
+        const relaxedSearch = platformDomain
+          ? `${relaxed} site:${platformDomain}`
+          : relaxed;
+        raw = await this.searchEngine.discover(relaxedSearch, discoverCount);
+      }
+    }
+
     const verified = this.verifyEngine.verify(raw, sanitized);
     let safe = this.outputShield.protect(verified.results);
 
@@ -285,6 +299,61 @@ export class KaguraSearch {
         engine: raw.find((r) => r.url === s.source)?.engine ?? "unknown",
       }))
       .slice(0, count);
+  }
+
+  private relaxQuery(query: string): string | null {
+    // Strategy 1: If query has site: prefix (from platform), strip it
+    const withoutSite = query.replace(/\s*site:\S+/g, "").trim();
+    if (withoutSite !== query && withoutSite.length > 0) return withoutSite;
+
+    // Strategy 2: Extract quoted terms first
+    const quoted = query.match(/"[^"]+"/g);
+    if (quoted && quoted.length > 0) {
+      return quoted.map((q) => q.replace(/"/g, "")).join(" ");
+    }
+
+    // Strategy 3: Remove generic filler words, keep distinctive terms
+    const fillers = new Set([
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "for",
+      "with",
+      "in",
+      "on",
+      "of",
+      "to",
+      "is",
+      "are",
+      "was",
+      "how",
+      "what",
+      "why",
+      "best",
+      "top",
+      "guide",
+      "tutorial",
+      "documentation",
+      "overview",
+      "introduction",
+      "using",
+    ]);
+    const words = query.split(/\s+/);
+    const core = words.filter((w) => !fillers.has(w.toLowerCase()));
+
+    // If we removed at least one word and have something left, use it
+    if (core.length > 0 && core.length < words.length) {
+      return core.join(" ");
+    }
+
+    // Strategy 4: If query is long (4+ words), take first 2-3 distinctive words
+    if (words.length >= 4) {
+      return words.slice(0, 3).join(" ");
+    }
+
+    return null;
   }
 
   private platformSite(platform: string): string {
